@@ -3,8 +3,11 @@ import { NPC_PUBLIC } from '../../content/public/npcs';
 import type { NpcPublic, PublicCaseData, ServerCaseData } from '../game/types';
 import {
   accuse, applyRetry, ask, createGame, finalizeLose, grade, present,
-  GameState, TURN_WARN,
+  GameState, TURN_WARN, WITNESS_COST,
 } from '../game/engine';
+import { initRemote, remoteAccuse, remoteAsk, remoteEnabled } from '../game/remote';
+
+let remoteEnding: ServerCaseData['ending'] | null = null;
 
 const CASES = PUBLIC_CASES;
 const NPCS = NPC_PUBLIC;
@@ -95,6 +98,105 @@ function markCleared(id: string): void {
   storeSave(save);
 }
 
+// ─── 액션 핸들러 (원격 우선, 실패 시 목업 폴리백) ───
+function afterTurn(st: GameState): void {
+  if (st.turnLeft <= 0 && st.phase === 'interrogate') {
+    st.log.push({ who: '시스템', kind: 'sys', text: '마감입니다. 현재 단서로 지목해주세요.' });
+    st.phase = 'accuse';
+  }
+  persist(); render();
+}
+
+async function handleAsk(npc: NpcPublic, fc: ServerCaseData, st: GameState, text: string): Promise<void> {
+  if (remoteEnabled()) {
+    const cost = npc.id === fc.witness ? WITNESS_COST : 1;
+    st.turnLeft = Math.max(0, st.turnLeft - cost);
+    st.turnsUsed += cost;
+    st.npc[npc.id].turns += 1;
+    st.log.push({ who: '나', kind: 'me', text, npc: npc.id });
+    let streamed = '';
+    const bubble = { who: npc.name, kind: 'npc' as const, text: '…', npc: npc.id };
+    st.log.push(bubble);
+    try {
+      const meta = await remoteAsk(fc, st, npc, text, null, (d) => {
+        streamed += d;
+        bubble.text = streamed;
+        render();
+      });
+      bubble.text = meta.reply;
+      st.npc[npc.id].defense = Math.max(-3, Math.min(3, st.npc[npc.id].defense + meta.defenseDelta));
+      for (const u of meta.unlocked) {
+        if (!st.foundClues.includes(u.id)) {
+          st.foundClues.push(u.id);
+          st.log.push({ who: '시스템', kind: 'sys', text: `🔎 단서 획득: ${u.title}` });
+        }
+      }
+      afterTurn(st);
+      return;
+    } catch {
+      st.log.pop(); // 스트리밍 버블 제거 후 목업 폴리백
+      st.log.pop();
+      st.turnLeft += cost; // 비용 복원
+      st.turnsUsed -= cost;
+      st.npc[npc.id].turns -= 1;
+    }
+  }
+  ask(npc, fc, st, text);
+  afterTurn(st);
+}
+
+async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, clueId: string): Promise<void> {
+  if (remoteEnabled()) {
+    const clue = fc.clues.find((x) => x.id === clueId);
+    st.log.push({ who: '나', kind: 'me', text: `[단서 제시] ${clue?.title ?? clueId}`, npc: npc.id });
+    try {
+      const meta = await remoteAsk(fc, st, npc, `이 단서를 보시죠: ${clue?.title ?? ''}`, clueId, () => {});
+      st.log.push({ who: npc.name, kind: 'npc', text: meta.reply, npc: npc.id });
+      for (const u of meta.unlocked) {
+        if (!st.foundClues.includes(u.id)) {
+          st.foundClues.push(u.id);
+          st.log.push({ who: '시스템', kind: 'sys', text: `🔎 단서 획득: ${u.title}` });
+        }
+      }
+      if (meta.unlocked.length === 0) {
+        st.npc[npc.id].defense = Math.min(3, st.npc[npc.id].defense + 1);
+        st.presentWrong += 1;
+      }
+      persist(); render();
+      return;
+    } catch {
+      st.log.pop();
+    }
+  }
+  present(npc, fc, st, clueId);
+  persist(); render();
+}
+
+async function handleAccuse(fc: ServerCaseData, st: GameState, culpritId: string, clueIds: string[]): Promise<void> {
+  if (remoteEnabled()) {
+    try {
+      const r = await remoteAccuse(fc, st, culpritId, clueIds);
+      st.phase = 'verdict';
+      st.verdict = r.verdict;
+      st.log.push({ who: '판정', kind: 'sys', text: r.feedback });
+      if (r.verdict === 'win') {
+        st.phase = 'result';
+        if (r.ending) remoteEnding = r.ending;
+        for (const id of r.postUnlock ?? []) {
+          if (!st.foundClues.includes(id)) st.foundClues.push(id);
+        }
+      }
+      persist(); render();
+      return;
+    } catch {
+      // 목업 폴리백으로 진행
+    }
+  }
+  const r = accuse(fc, st, culpritId, clueIds);
+  st.log.push({ who: '판정', kind: 'sys', text: r.feedback });
+  persist(); render();
+}
+
 // ─── 본편 ───
 function render(): void {
   if (!currentCase || !fullCase || !s) return renderTitle();
@@ -145,8 +247,7 @@ function render(): void {
         const pb = el('button', 'btn mini', '제시');
         pb.onclick = () => {
           const npc = NPCS[st.activeSuspect];
-          present(npc, fc, st, clue.id);
-          persist(); render();
+          void handlePresent(npc, fc, st, clue.id);
         };
         ce.append(pb);
       }
@@ -186,12 +287,7 @@ function render(): void {
       ev.preventDefault();
       const text = input.value.trim();
       if (!text) return;
-      ask(npc, fc, st, text);
-      if (st.turnLeft <= 0) {
-        st.log.push({ who: '시스템', kind: 'sys', text: '마감입니다. 현재 단서로 지목해주세요.' });
-        st.phase = 'accuse';
-      }
-      persist(); render();
+      void handleAsk(npc, fc, st, text);
     };
     input.onkeydown = (ev) => {
       if (ev.key === 'Enter' && (composing || (ev as KeyboardEvent).keyCode === 229)) ev.stopPropagation();
@@ -231,9 +327,7 @@ function render(): void {
     if (st.foundClues.length < 2) main.append(el('p', 'dim', '⚠️ 핵심 단서가 부족합니다. 그래도 제출할 수는 있습니다.'));
     submit.onclick = () => {
       if (!pickedNpc) return;
-      const r = accuse(fc, st, pickedNpc, [...pickedClues]);
-      st.log.push({ who: '판정', kind: 'sys', text: r.feedback });
-      persist(); render();
+      void handleAccuse(fc, st, pickedNpc, [...pickedClues]);
     };
     const back = el('button', 'btn', '← 심문으로');
     back.onclick = () => { st.phase = 'interrogate'; render(); };
@@ -264,12 +358,13 @@ function render(): void {
 }
 
 function renderResult(c: PublicCaseData, fc: ServerCaseData, st: GameState, main: HTMLElement): void {
+  const ending = remoteEnding ?? fc.ending;
   if (st.verdict === 'win' && !st.endChoice) {
-    main.append(el('div', 'verdict-box', fc.ending.win));
-    if (fc.ending.twist) main.append(el('div', 'twist-box', fc.ending.twist));
-    if (fc.ending.choice) {
-      const a = el('button', 'btn primary', fc.ending.choice.a.label);
-      const b = el('button', 'btn', fc.ending.choice.b.label);
+    main.append(el('div', 'verdict-box', ending.win));
+    if (ending.twist) main.append(el('div', 'twist-box', ending.twist));
+    if (ending.choice) {
+      const a = el('button', 'btn primary', ending.choice.a.label);
+      const b = el('button', 'btn', ending.choice.b.label);
       a.onclick = () => { st.endChoice = 'a'; markCleared(c.id); persist(); render(); };
       b.onclick = () => { st.endChoice = 'b'; markCleared(c.id); persist(); render(); };
       main.append(a, b);
@@ -277,8 +372,8 @@ function renderResult(c: PublicCaseData, fc: ServerCaseData, st: GameState, main
     }
     markCleared(c.id);
   }
-  if (st.endChoice && fc.ending.choice) {
-    main.append(el('div', 'twist-box', st.endChoice === 'a' ? fc.ending.choice.a.text : fc.ending.choice.b.text));
+  if (st.endChoice && ending.choice) {
+    main.append(el('div', 'twist-box', st.endChoice === 'a' ? ending.choice.a.text : ending.choice.b.text));
   }
   const g = grade(fc, st);
   main.append(el('div', `grade grade-${g}`, `등급 ${g}`));
