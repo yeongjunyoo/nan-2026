@@ -1,0 +1,10 @@
+name = "nan503-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-07-01"
+
+# secrets (wrangler secret put):
+#   ANTHROPIC_API_KEY — Claude API
+#   STATE_SECRET      — HMAC 서명키 (임의 긴 문자열)
+
+[vars]
+ALLOWED_ORIGIN = "*"

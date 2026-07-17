@@ -5,19 +5,23 @@ export type Trigger =
   | { type: 'turn'; npc: string; count: number }
   | { type: 'confession'; npc: string; requires_present: string };
 
-// ─── 단서 (GDD v1.1: {clue_id, holder_npc, trigger, reveal_text}) ───
-export interface ClueDef {
+// ─── 공개 단서 (클리이언트) ───
+export interface PublicClue {
   id: string;
   title: string;
   desc: string;
-  holder: string; // npc id or 'system'
+  holder: string;
+}
+
+// ─── 서버 전용 단서 (프록시: trigger + reveal) ───
+export interface ServerClue extends PublicClue {
   trigger: Trigger;
   /** 백엔드가 해금 확정 후 다음 턴 컨텍스트에 주입하는 텍스트 (미해금 시 프롬프트 물리 비포함) */
   reveal: string;
 }
 
-// ─── NPC Voice 카드 (CSC: Voice/Action 분리) ───
-export interface VoiceCard {
+// ─── NPC 공개 프로필 (클리이언트 표시용) ───
+export interface NpcPublic {
   id: string;
   name: string;
   role: string;
@@ -25,45 +29,54 @@ export interface VoiceCard {
   color: string;
   oneLiner: string;
   personality: string;
-  /** 말투 규칙 — Voice 카드 본체 */
-  speechRules: string[];
-  /** 이 캐릭터가 절대 안 하는 표현 (출력 리트머스에 병합) */
-  forbidden: string[];
-  /** caseId -> 최소 비밀. 진범인 사건에만 존재 ("당신은 X를 했다. 절대 인정하지 마라" 수준) */
-  secrets: Record<string, string>;
-  /** 크라임씬 룰: culprit=거짓말 가능(해당 사걸만), nonculprit=능동 거짓말 금지, witness=항상 진실 */
-  honestyRule: 'culprit' | 'nonculprit' | 'witness';
-  /** 사건 상관없는 개인 배경지식 (이 NPC가 아는 것만) */
-  knowledge: string[];
   greeting: string;
-  /** 폴리백 대사 ≥10 (인캐릭터, 물반복 로테이션) */
-  fallbackLines: string[];
+  /** 폴리백 대사 — 사건 무관 공통 + 사걍별 분리 (인격 붕괴 방지, reveal 문장 재사용 금지) */
+  fallback: {
+    common: string[];
+    byCase: Record<string, string[]>;
+  };
 }
 
-// ─── 사건 ───
-export interface EndingChoice {
-  a: { label: string; text: string };
-  b: { label: string; text: string };
+// ─── NPC 서버 전용 (프롬프트 조립용) ───
+export interface NpcServer {
+  id: string;
+  speechRules: string[];
+  forbidden: string[];
+  secrets: Record<string, string>;
+  knowledge: string[];
 }
 
-export interface CaseData {
+// ─── 사건 공개 데이터 (클리이언트) ───
+export interface PublicCaseData {
   id: string;
   title: string;
-  client: string; // 의뢰인 npc id
-  briefing: string; // 앵커 포함
-  question: string; // 판정 질문 (지목 화면)
-  suspects: string[]; // 심문 대상 3 (지목 가능 집합)
-  witness?: string; // 오복자 (턴 비용 2)
+  client: string;
+  briefing: string;
+  question: string;
+  suspects: string[];
+  witness?: string;
+  clues: PublicClue[];
+}
+
+// ─── 사건 서버 전용 데이터 (프록시) ───
+export interface ServerCaseData extends Omit<PublicCaseData, 'clues'> {
   culpritId: string;
-  clues: ClueDef[];
-  keyClueIds: string[]; // 핵심 단서 (판정 조합)
-  partialClueSets: string[][]; // 부분 정답 세트
+  clues: ServerClue[];
+  keyClueIds: string[];
+  /** 각 그룹에서 1개 이상 필요 (OR 조합 — 사건2: {d3,(d4 OR d5)}) */
+  keyClueChoices?: string[][];
+  partialClueSets: string[][];
   ending: {
     win: string;
-    lose: string; // 재도전 실패 시 C등급 문구
-    twist?: string; // 반전 (판정 후)
-    choice?: EndingChoice; // 사건2 엔딩 선택
+    lose: string;
+    twist?: string;
+    choice?: { a: { label: string; text: string }; b: { label: string; text: string } };
   };
-  /** 미해금 키워드 — 출력 리트머스 대상 */
   litmusKeywords: string[];
 }
+
+// ─── 레거시 호환 (mock/구버전 참조 제거용) ───
+/** @deprecated PublicCaseData 사용 */
+export type CaseData = ServerCaseData;
+/** @deprecated NpcPublic 사용 */
+export type VoiceCard = NpcPublic & NpcServer;

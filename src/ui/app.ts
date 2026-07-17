@@ -1,22 +1,13 @@
-import { case1 } from '../../content/cases/case1';
-import { case2 } from '../../content/cases/case2';
-import { case3 } from '../../content/cases/case3';
-import { gubonsik } from '../../content/npc/gubonsik';
-import { chaminjae } from '../../content/npc/chaminjae';
-import { isangrok } from '../../content/npc/isangrok';
-import { jeonsunduk } from '../../content/npc/jeonsunduk';
-import { marupang } from '../../content/npc/marupang';
-import { obokja } from '../../content/npc/obokja';
-import type { CaseData, VoiceCard } from '../game/types';
+import { PUBLIC_CASES } from '../../content/public/cases';
+import { NPC_PUBLIC } from '../../content/public/npcs';
+import type { NpcPublic, PublicCaseData, ServerCaseData } from '../game/types';
 import {
   accuse, applyRetry, ask, createGame, finalizeLose, grade, present,
   GameState, TURN_WARN,
 } from '../game/engine';
 
-const NPCS: Record<string, VoiceCard> = {
-  gu: gubonsik, cha: chaminjae, lee: isangrok, jeon: jeonsunduk, ma: marupang, ok: obokja,
-};
-const CASES: CaseData[] = [case1, case2, case3];
+const CASES = PUBLIC_CASES;
+const NPCS = NPC_PUBLIC;
 
 // ─── 저장 (localStorage 미러) ───
 const LS_KEY = 'nan503.v1';
@@ -27,7 +18,8 @@ function loadSave(): SaveData {
 function storeSave(d: SaveData): void { localStorage.setItem(LS_KEY, JSON.stringify(d)); }
 
 let save = loadSave();
-let currentCase: CaseData | null = null;
+let currentCase: PublicCaseData | null = null;
+let fullCase: ServerCaseData | null = null;
 let s: GameState | null = null;
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -45,6 +37,12 @@ function persist(): void {
   }
 }
 
+async function loadFullCase(id: string): Promise<ServerCaseData | null> {
+  // 목업 모드: 서버 데이터를 동적 임포트 (원격 모드에서는 프록시가 보유)
+  const mod = await import('../../content/server/cases');
+  return mod.SERVER_CASES.find((x) => x.id === id) ?? null;
+}
+
 // ─── 화면 ───
 function renderTitle(): void {
   app.innerHTML = '';
@@ -59,31 +57,34 @@ function renderTitle(): void {
     const done = save.cleared?.includes(c.id);
     const btn = el('button', 'btn case-pick', `${done ? '✅ ' : ''}${c.title}${locked ? ' 🔒' : ''}`);
     btn.disabled = !!locked;
-    btn.onclick = () => startCase(c);
+    btn.onclick = () => { void startCase(c); };
     box.append(btn);
   }
   if (save.current) {
     const cont = el('button', 'btn primary', '이어하기');
-    cont.onclick = () => resumeCase();
+    cont.onclick = () => { void resumeCase(); };
     box.append(cont);
   }
   app.append(box);
 }
 
-function startCase(c: CaseData): void {
+async function startCase(c: PublicCaseData): Promise<void> {
   currentCase = c;
-  s = createGame(c);
+  fullCase = await loadFullCase(c.id);
+  if (!fullCase) return;
+  s = createGame(fullCase);
   s.phase = 'briefing';
   persist();
   render();
 }
 
-function resumeCase(): void {
+async function resumeCase(): Promise<void> {
   const cur = save.current;
   if (!cur) return renderTitle();
   const c = CASES.find((x) => x.id === cur.caseId);
   if (!c) return renderTitle();
   currentCase = c;
+  fullCase = await loadFullCase(c.id);
   s = cur.state;
   render();
 }
@@ -96,13 +97,13 @@ function markCleared(id: string): void {
 
 // ─── 본편 ───
 function render(): void {
-  if (!currentCase || !s) return renderTitle();
+  if (!currentCase || !fullCase || !s) return renderTitle();
   const c = currentCase;
+  const fc = fullCase;
   const st = s;
   app.innerHTML = '';
   const root = el('div', 'layout');
 
-  // 좌: 사건 파일
   const side = el('aside', 'side');
   side.append(el('h1', 'case-title', c.title));
   side.append(el('p', 'turn-counter', `남은 심문: ${st.turnLeft}${st.turnLeft <= TURN_WARN ? ' ⚠️ 마감 임박' : ''}`));
@@ -144,7 +145,7 @@ function render(): void {
         const pb = el('button', 'btn mini', '제시');
         pb.onclick = () => {
           const npc = NPCS[st.activeSuspect];
-          present(npc, c, st, clue.id);
+          present(npc, fc, st, clue.id);
           persist(); render();
         };
         ce.append(pb);
@@ -158,7 +159,6 @@ function render(): void {
     }
   }
 
-  // 우: 로그 + 입력
   const main = el('main', 'main');
   const log = el('div', 'log');
   const npcFilter = st.activeSuspect;
@@ -186,7 +186,7 @@ function render(): void {
       ev.preventDefault();
       const text = input.value.trim();
       if (!text) return;
-      ask(npc, c, st, text);
+      ask(npc, fc, st, text);
       if (st.turnLeft <= 0) {
         st.log.push({ who: '시스템', kind: 'sys', text: '마감입니다. 현재 단서로 지목해주세요.' });
         st.phase = 'accuse';
@@ -204,7 +204,6 @@ function render(): void {
     const pickedClues = new Set<string>();
     const npcRow = el('div', 'accuse-row');
     const submit = el('button', 'btn danger', '제출');
-    const rerender = () => render();
     for (const id of c.suspects) {
       const npc = NPCS[id];
       const b = el('button', 'btn', npc.name);
@@ -232,23 +231,23 @@ function render(): void {
     if (st.foundClues.length < 2) main.append(el('p', 'dim', '⚠️ 핵심 단서가 부족합니다. 그래도 제출할 수는 있습니다.'));
     submit.onclick = () => {
       if (!pickedNpc) return;
-      const r = accuse(c, st, pickedNpc, [...pickedClues]);
+      const r = accuse(fc, st, pickedNpc, [...pickedClues]);
       st.log.push({ who: '판정', kind: 'sys', text: r.feedback });
-      persist(); rerender();
+      persist(); render();
     };
     const back = el('button', 'btn', '← 심문으로');
     back.onclick = () => { st.phase = 'interrogate'; render(); };
     main.append(submit, back);
   } else if (st.phase === 'verdict') {
     if (st.verdict === 'win') {
-      renderResult(c, st, main);
+      renderResult(c, fc, st, main);
     } else {
       const retryBtn = el('button', 'btn primary', `재도전 (턴 +3, 남은 기회 ${st.retriesLeft})`);
       retryBtn.disabled = st.retriesLeft <= 0;
       retryBtn.onclick = () => { applyRetry(st); persist(); render(); };
       const giveUp = el('button', 'btn', '포기하고 마무리 (C등급)');
       giveUp.onclick = () => {
-        st.log.push({ who: '판정', kind: 'sys', text: c.ending.lose });
+        st.log.push({ who: '판정', kind: 'sys', text: fc.ending.lose });
         finalizeLose(st);
         markCleared(c.id);
         persist(); render();
@@ -256,7 +255,7 @@ function render(): void {
       main.append(retryBtn, giveUp);
     }
   } else if (st.phase === 'result') {
-    renderResult(c, st, main);
+    renderResult(c, fc, st, main);
   }
 
   root.append(side, main);
@@ -264,13 +263,13 @@ function render(): void {
   log.scrollTop = log.scrollHeight;
 }
 
-function renderResult(c: CaseData, st: GameState, main: HTMLElement): void {
+function renderResult(c: PublicCaseData, fc: ServerCaseData, st: GameState, main: HTMLElement): void {
   if (st.verdict === 'win' && !st.endChoice) {
-    main.append(el('div', 'verdict-box', c.ending.win));
-    if (c.ending.twist) main.append(el('div', 'twist-box', c.ending.twist));
-    if (c.ending.choice) {
-      const a = el('button', 'btn primary', c.ending.choice.a.label);
-      const b = el('button', 'btn', c.ending.choice.b.label);
+    main.append(el('div', 'verdict-box', fc.ending.win));
+    if (fc.ending.twist) main.append(el('div', 'twist-box', fc.ending.twist));
+    if (fc.ending.choice) {
+      const a = el('button', 'btn primary', fc.ending.choice.a.label);
+      const b = el('button', 'btn', fc.ending.choice.b.label);
       a.onclick = () => { st.endChoice = 'a'; markCleared(c.id); persist(); render(); };
       b.onclick = () => { st.endChoice = 'b'; markCleared(c.id); persist(); render(); };
       main.append(a, b);
@@ -278,10 +277,10 @@ function renderResult(c: CaseData, st: GameState, main: HTMLElement): void {
     }
     markCleared(c.id);
   }
-  if (st.endChoice && c.ending.choice) {
-    main.append(el('div', 'twist-box', st.endChoice === 'a' ? c.ending.choice.a.text : c.ending.choice.b.text));
+  if (st.endChoice && fc.ending.choice) {
+    main.append(el('div', 'twist-box', st.endChoice === 'a' ? fc.ending.choice.a.text : fc.ending.choice.b.text));
   }
-  const g = grade(c, st);
+  const g = grade(fc, st);
   main.append(el('div', `grade grade-${g}`, `등급 ${g}`));
   const missing = c.clues.filter((cl) => !st.foundClues.includes(cl.id)).length;
   if (missing > 0) main.append(el('p', 'dim', `숨겨진 단서 ${missing}개가 남아 있습니다.`));
@@ -295,19 +294,15 @@ function renderResult(c: CaseData, st: GameState, main: HTMLElement): void {
   const btns = el('div', 'accuse-row');
   if (nextIdx < CASES.length) {
     const next = el('button', 'btn primary', `다음 사건: ${CASES[nextIdx].title}`);
-    next.onclick = () => startCase(CASES[nextIdx]);
+    next.onclick = () => { void startCase(CASES[nextIdx]); };
     btns.append(next);
   }
   const retry = el('button', 'btn', '다시 플레이');
-  retry.onclick = () => startCase(c);
+  retry.onclick = () => { void startCase(c); };
   const home = el('button', 'btn', '타이틀로');
-  home.onclick = () => { currentCase = null; s = null; persist(); renderTitle(); };
+  home.onclick = () => { currentCase = null; fullCase = null; s = null; persist(); renderTitle(); };
   btns.append(retry, home);
   main.append(share, btns);
 }
 
-// ─── 부트 ───
-if (save.current) {
-  // 자동 이어하기 대신 타이틀에서 선택 (명시 프롬프트)
-}
 renderTitle();
