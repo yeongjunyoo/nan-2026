@@ -54,3 +54,23 @@ body { margin: 0; background: var(--bg); color: var(--tx); }
 .btn.danger { background: #7c2d3a; border-color: #a04050; }
 .btn + .btn { margin-left: 8px; }
 .accuse-row { display: flex; gap: 8px; margin: 12px 0 20px; }
+
+/* ─── v1.1: 타이틀/메타/판정 ─── */
+.title-screen { max-width: 560px; margin: 0 auto; padding: 48px 20px; display: flex; flex-direction: column; gap: 14px; }
+.title-screen h1 { font-size: 34px; margin: 0; color: var(--tx); }
+.eyebrow { color: var(--accent); font-weight: 700; letter-spacing: 1px; font-size: 13px; margin: 0; }
+.concept { color: var(--mut); margin: 0; line-height: 1.6; }
+.ai-badge { background: #1d2b22; border: 1px solid #2f5c40; color: #7fd6a4; border-radius: 8px; padding: 8px 12px; font-size: 13px; }
+.case-pick { text-align: left; }
+.case-pick:disabled { opacity: 0.45; cursor: not-allowed; }
+.turn-counter { font-size: 13px; color: var(--accent); font-weight: 700; margin: 0 0 8px; }
+.cap-line { font-size: 12px; color: var(--mut); border-top: 1px solid var(--line); padding-top: 10px; }
+.btn.mini { padding: 5px 10px; font-size: 12px; margin-top: 6px; }
+.btn.picked { outline: 2px solid var(--accent); background: #3a2f1e; }
+.accuse-clues { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.verdict-box { background: #1d2b22; border: 1px solid #2f5c40; border-radius: 10px; padding: 16px; line-height: 1.7; margin-bottom: 10px; }
+.twist-box { background: #2b1d2b; border: 1px solid #5c2f5c; border-radius: 10px; padding: 16px; line-height: 1.7; margin-bottom: 10px; }
+.grade { font-size: 40px; font-weight: 900; margin: 12px 0; }
+.grade-S { color: #ffd45e; } .grade-A { color: #7fd6a4; } .grade-B { color: #7fb0d6; } .grade-C { color: #9aa0b8; }
+.dim { color: var(--mut); font-size: 13px; }
+.suspect.witness { border-left-style: dashed; }
