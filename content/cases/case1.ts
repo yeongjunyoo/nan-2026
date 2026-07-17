@@ -1,4 +1,4 @@
-import type { CaseData } from '../src/game/types';
+import type { CaseData } from '../../src/game/types';
 
 /** 루프 검증용 스텁 사건 — 실제 콘텐츠는 소재 도시에 수확 후 교체 */
 export const case1: CaseData = {
