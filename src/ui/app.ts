@@ -50,9 +50,9 @@ async function loadFullCase(id: string): Promise<ServerCaseData | null> {
 function renderTitle(): void {
   app.innerHTML = '';
   const box = el('div', 'title-screen');
-  box.append(el('p', 'eyebrow', 'AI 심문 추리 · 퇴근길 3분'));
+  box.append(el('p', 'eyebrow', 'AI 심문 추리, 퇴근길 3분'));
   box.append(el('h1', '', '사건파일 503호'));
-  box.append(el('p', 'concept', '가상 중소기업 두잇상사의 소동 전담 창구. 누구든 심문하고, 단서를 들이대라.'));
+  box.append(el('p', 'concept', '가상 중소기업 두잇상사의 소동 전담 창구. 누구든 심문한다. 단서를 들이대라.'));
   box.append(el('p', 'ai-badge', '🤖 NPC 답변은 실시간 AI로 생성됩니다'));
   for (const c of CASES) {
     const idx = CASES.indexOf(c);
@@ -212,7 +212,7 @@ function render(): void {
 
   if (st.phase === 'briefing') {
     side.append(el('p', 'briefing', c.briefing));
-    side.append(el('p', 'cap-line', '503호 창구: 누구든 심문하고, 단서를 들이댈 수 있습니다.'));
+    side.append(el('p', 'cap-line', '503호 창구: 누구든 심문하고 단서를 들이댈 수 있습니다.'));
     const start = el('button', 'btn primary', '심문 시작');
     start.onclick = () => { st.phase = 'interrogate'; persist(); render(); };
     side.append(start);
