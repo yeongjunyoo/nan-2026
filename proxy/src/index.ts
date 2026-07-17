@@ -124,7 +124,7 @@ export default {
         // 해금 확정 (백엔드 — LLM 선언 불신)
         const declaredTopics = Array.isArray(replyObj.matched_topic_ids) ? replyObj.matched_topic_ids.map(String) : [];
         const mode = url.pathname === '/present' ? 'present' : 'ask';
-        const unlocks = findUnlocks(caseData, state, npcId, declaredTopics, mode, presentedId)
+        const unlocks = findUnlocks(caseData, state, { mode, npcId, topicsHit: declaredTopics, presentedClueId: presentedId })
           .map((cl) => ({ id: cl.id, title: cl.title, desc: cl.desc, reveal: cl.reveal }));
 
         await send('meta', {
