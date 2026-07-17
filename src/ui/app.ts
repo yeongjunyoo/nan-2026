@@ -218,6 +218,16 @@ function render(): void {
     side.append(start);
   } else {
     side.append(el('h2', 'sec', '용의자'));
+    // 의뢰인 카드 (심문 가능, 지목 불가)
+    if (!c.suspects.includes(c.client)) {
+      const npc = NPCS[c.client];
+      const card = el('button', `suspect client${c.client === st.activeSuspect ? ' active' : ''}`);
+      card.style.setProperty('--c', npc.color);
+      card.append(el('strong', '', `${npc.name} · ${npc.role}`));
+      card.append(el('span', 'one-liner', '의뢰인 (심문 가능)'));
+      card.onclick = () => { st.activeSuspect = c.client; persist(); render(); };
+      side.append(card);
+    }
     for (const id of c.suspects) {
       const npc = NPCS[id];
       const card = el('button', `suspect${id === st.activeSuspect ? ' active' : ''}`);
