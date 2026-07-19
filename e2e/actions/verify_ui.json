@@ -1,0 +1,10 @@
+[
+  { "shot": "interrogate_fresh" },
+  { "ask": "어제 몇 시에 퇴근하셨어요?" },
+  { "shot": "first_answer_reveal" },
+  { "suspect": "구본식" },
+  { "present": "냉장고 메모" },
+  { "shot": "wrong_present" },
+  { "expectText": "통하지 않았습니다" },
+  { "expectText": "경계" }
+]

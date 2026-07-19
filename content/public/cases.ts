@@ -7,7 +7,8 @@ export const case1: PublicCaseData = {
   title: '사라진 푸딩 한 개',
   client: 'jeon',
   briefing:
-    '탕비실 냉장고에 있던 전순덕 과장의 기념일 푸딩이 어제 밤 사라졌다. 푸딩은 어제 늦은 밤에 없어진 것으로 보인다. 그 시간 회사에는 야근 중인 사람이 여럿 있었다.',
+    '어젯밤, 탕비실 냉장고에서 전순덕 과장의 기념일 푸딩이 사라졌다. 그 시간 회사에는 야근 중인 사람이 여럿 있었다.',
+  clientVoice: '푸딩이 없어졌습니다. 기념일 푸딩이었다고요.',
   question: '푸딩을 먹은 사람은 누구인가?',
   suspects: ['cha', 'ma', 'gu'],
   witness: 'ok',
@@ -28,6 +29,7 @@ export const case2: PublicCaseData = {
   client: 'jeon',
   briefing:
     '어제 회식 법인카드 영수증(23만원)이 사라졌다. 경리 마감은 내일. 전순덕 과장은 "원본 없으면 감사에 걸린다"며 수사를 의뢰했다.',
+  clientVoice: '원본 영수증이 없으면 감사에 걸립니다. 내일이 마감이에요.',
   question: '영수증을 없앤 사람은 누구인가?',
   suspects: ['lee', 'gu', 'cha'],
   witness: 'ok',
@@ -49,6 +51,7 @@ export const case3: PublicCaseData = {
   client: 'cha',
   briefing:
     '금요일 17:55, 퇴근 5분 전. 부재중이던 차민재 대리의 사내 메신저 계정으로 팀 전체에 "이거 오늘까지 가능할까요?"가 발신됐다. 차민재 본인은 보낸 적이 없다고 한다.',
+  clientVoice: '제 계정으로 그런 메시지가 갔다니… 전 그 시간에 자리에 없었어요.',
   question: '메신저를 발신한 사람은 누구인가?',
   suspects: ['ma', 'gu', 'lee'],
   witness: 'ok',

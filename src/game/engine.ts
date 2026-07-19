@@ -232,15 +232,15 @@ export function accuse(c: ServerCaseData, s: GameState, culpritId: string, clueI
     s.verdict = 'partial';
     return {
       verdict: 'partial',
-      feedback: '방향은 맞는 것 같습니다만… 결정적 단서가 빈손이네요. (핵심 단서 부족)',
+      feedback: '방향은 맞는 것 같습니다만… 결정적 단서가 빈손이네요. 그 사람을 묶을 핵심 물증이 더 필요합니다.',
     };
   }
   s.verdict = 'lose';
   const partial = c.partialClueSets.some((set) => set.every((k) => clueIds.includes(k)));
   const hint = c.accuseHints?.[culpritId];
   const base = partial
-    ? '단서 조합은 그럴듯한데, 뭔가 하나 어긋납니다. 그 사람도 숨기는 게 있긴 합니다만… 이 사건이랑 직결인지는 확신이 안 서네요.'
-    : '그 사람도 뭔가 숨기는 게 있긴 합니다만… 이 사건이랑 직결인지는 확신이 안 서네요.';
+    ? '단서 조합은 그럴듯한데, 뭔가 하나 어긋납니다. 이 사건과 직결되는 줄은 아닌 것 같습니다.'
+    : '그 사람의 알리바이는 성립하는 것 같습니다. 이 선은 접고, 다른 쪽을 살펴야겠습니다.';
   return { verdict: 'lose', feedback: hint ? `${base} ${hint}` : base };
 }
 

@@ -53,6 +53,8 @@ export interface PublicCaseData {
   title: string;
   client: string;
   briefing: string;
+  /** 브리핑에 띄우는 의뢰인 대사 1행 (캐릭터 맛보기) */
+  clientVoice?: string;
   question: string;
   suspects: string[];
   witness?: string;

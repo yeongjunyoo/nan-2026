@@ -45,13 +45,13 @@ export const case1: ServerCaseData = {
         type: 'present', npc: 'gu', clue: 'c1',
         then: { type: 'topic', npc: 'gu', topics: ['휴지통', '비웠', '캐러멜'] },
       },
-      reveal: '구본식이 빈 용기(c1)를 보고 동요하다가 "휴지통은… 제가 비웠습니다만"이라고 실토성 발언. 부장실 휴지통에서 캐러멜 소스 포장지 확인.',
+      reveal: '구본식: "아니 그건… 휴지통은 제가 비웠습니다만. 뭐가 들어 있었는지는, 나는 모릅니다. 모른다고요."',
     },
     {
       id: 'c4', title: '혈당 체크 앱 알림 21:47 — 수치 217 (급등)', holder: 'gu',
       desc: '구본식의 혈당 관리 앱이 어제 21:47에 기록한 수치 217. 단 것을 끊은 사람의 수치가 아니다.',
       trigger: { type: 'present', npc: 'gu', clue: 'c3' },
-      reveal: '캐러멜 소스(c3)를 들이대자 구본식의 스마트워치가 보인다. 혈당 알림 21:47 — 217. "단 것 끊었다"던 그 시간대에, 급등.',
+      reveal: '구본식: "이, 이건 사생활입니다. 혈당이 왜… 앱이 오작동하는 바람에, 그냥 그렇다고요."',
     },
     {
       id: 'c7', title: '마루팡 18:02 정시 퇴근 기록', holder: 'ma',
@@ -111,13 +111,13 @@ export const case2: ServerCaseData = {
         type: 'topic', npc: 'lee', topics: ['어제 뭐', '정리', '당번'],
         then: { type: 'topic', npc: 'lee', topics: ['뭘 버렸', '버린', '버렸', '버리셨', '파쇄'] },
       },
-      reveal: '이상록이 어제 문서 정리 당번으로 서류를 파쇄했다고 밝힘 → 파쇄함을 확인하니 영수증 조각이 섞여 있다.',
+      reveal: '이상록: "어제 제가 문서 정리 당번이었어요. 오래된 서류는 파쇄했는데… 파쇄함에 영수증 조각이 섞여 있다고요?"',
     },
     {
       id: 'd4', title: '조각에 섞인 이상록의 정리 더미', holder: 'lee',
       desc: '파쇄 조각들 사이에 전단지·오래된 회의 자료 — 이상록 책상의 "정리" 더미와 동일 묶음. 파쇄 맥락이 이상록의 정리 작업에 귀속.',
       trigger: { type: 'present', npc: 'lee', clue: 'd3' },
-      reveal: '파쇄함 조각(d3)을 들이대자 이상록: "그거… 제 책상 정리 더미랑 같네요. 전단지랑 오래된 회의 자료요."',
+      reveal: '이상록: "그거… 제 책상 정리 더미랑 같네요. 전단지랑 오래된 회의 자료요."',
     },
     {
       id: 'd5', title: '이상록의 시인', holder: 'lee',
@@ -129,13 +129,13 @@ export const case2: ServerCaseData = {
       id: 'd6', title: '구본식의 메신저 "영수증 꼭 찾아주세요"', holder: 'gu',
       desc: '구본식은 영수증이 사라진 걸 쫓는 쪽이다. 그에게도 영수증이 필요하다.',
       trigger: { type: 'topic', npc: 'gu', topics: ['영수증', '찾', '없어졌'] },
-      reveal: '구본식이 전순덕에게 보낸 메신저: "영수증 꼭 찾아주세요. 그거 없으면… 아니 그냥, 찾아야 하니까."',
+      reveal: '구본식: "전순덕 과장한테 메신저 좀 했지. 『영수증 꼭 찾아주세요』라고. 찾아야 하니까, 그냥… 찾아야 하니까."',
     },
     {
       id: 'd7', title: '전순덕의 사본 파일', holder: 'system',
       desc: '모든 영수증의 사본을 보관한 그녀의 폴리시. 사본의 23만원 내역에는 개인 접대비가 섞여 있다.',
       trigger: { type: 'turn', npc: 'jeon', count: 99 },
-      reveal: '판정 후 해금 — 전순덕이 사본을 꺼낸다: "근데 이 영수증, 원래 이상하면 안 됐어요."',
+      reveal: '전순덕이 사본을 공개한다: "근데 이 영수증, 원래 이상하면 안 됐어요."',
     },
   ],
   keyClueIds: ['d3'],
@@ -184,7 +184,7 @@ export const case3: ServerCaseData = {
       id: 'e2', title: '차민재 PC 활성 로그 17:52~17:58', holder: 'system',
       desc: '부재중인 차민재의 자리 PC가 17:52~17:58에 활성화됐다. 그 시간 누군가 그 자리에 앉았다.',
       trigger: { type: 'topic', npc: 'gu', topics: ['로그', '기록', '확인', 'IT'] },
-      reveal: 'IT 협조로 확인: 차민재 자리 PC가 17:52에 깨어나 17:58에 다시 잠겼다 — 그는 15시에 나갔는데.',
+      reveal: 'IT 협조 확인 — 차민재 자리 PC가 17:52에 깨어나 17:58에 다시 잠겼다. 그는 15시에 외출 중이었다.',
     },
     {
       id: 'e3', title: '마루팡 PC 지글러 기록', holder: 'ma',
@@ -192,7 +192,7 @@ export const case3: ServerCaseData = {
       trigger: {
         type: 'topic', npc: 'ma', topics: ['지글러', '자리', '컴퓨터', '마우스'],
       },
-      reveal: '마루팡 자리의 PC는 17:30 이후 움직임이 없다 — 지글러만. "자리를 지키는" 그의 PC만이 자리에 있었다.',
+      reveal: '마루팡: "제 PC요? 아 그거… 절전 모드가 고장 냈나 봐요. 알아서 깨어 있더라고요. (웃음)"',
     },
     {
       id: 'e4', title: '구본식의 실토 "나는 시켰을 뿐이야"', holder: 'gu',
@@ -201,7 +201,7 @@ export const case3: ServerCaseData = {
         type: 'present', npc: 'gu', clue: 'e2',
         then: { type: 'topic', npc: 'gu', topics: ['시켰', '지시', '보낸'] },
       },
-      reveal: '차민재 PC 활성 로그(e2)를 들이대자 구본식: "아니, 나는 시켰을 뿐이야. 마루팡 과장한테, 차민재 PC로 급한 거 보낸놓으라고."',
+      reveal: '구본식: "아니, 나는 시켰을 뿐이야. 마루팡 과장한테, 차민재 PC로 급한 거 보낸놓으라고."',
     },
     {
       id: 'e5', title: '이상록의 목격 — "뭘 뽑아가시던데요"', holder: 'lee',
@@ -213,7 +213,7 @@ export const case3: ServerCaseData = {
       id: 'e6', title: '회의록 — "잠깐"의 진짜 의미', holder: 'gu',
       desc: '회의록에 부장의 발언: "이건 잠깐이야, 다음 주 금요일까지면 돼." 그의 "오늘"은 애초에 다음 주였다.',
       trigger: { type: 'topic', npc: 'gu', topics: ['회의', '마감', '언제까지', '다음 주'] },
-      reveal: '회의록 14:20: 구본식 "그 보고서? 잠깐이야, 다음 주 금요일까지면 돼." — 그의 "오늘까지"는 다음 주 금요일이었다.',
+      reveal: '구본식: "아니, 회의에서도 말했잖나. 『잠깐이야, 다음 주 금요일까지면 돼』라고. …어?"',
     },
   ],
   keyClueIds: ['e2', 'e3'],

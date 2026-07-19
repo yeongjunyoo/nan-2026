@@ -60,6 +60,20 @@ function defenseSpan(st: GameState, id: string): HTMLElement | null {
 
 let logAll = false; // 로그 전체/현재 인물 토글 (심문 화면)
 
+/** 첫 턴 예시 질문 칩 (시간/현장/인물 3축 암묵 교육) */
+const EXAMPLE_CHIPS: Record<string, string[]> = {
+  case1: ['어제 몇 시에 퇴근하셨어요?', '탕비실 쓰레기통, 누가 치웠는지 아세요?', '혹시 푸딩 좋아하세요?'],
+  case2: ['회식 끝나고 몇 시에 퇴근하셨어요?', '파쇄함, 어제 누가 썼나요?', '영수증은 보통 누가 챙겨요?'],
+  case3: ['어제 오후에 자리 비우셨어요?', '급톡 본 사람이 있나요?', '퇴근 전에 PC 만진 사람 봤어요?'],
+};
+
+/** 첫 대면 NPC는 인사말을 띄운다 (빈 로그로 시작하는 어색함 해소) */
+function greetIfNew(st: GameState, id: string): void {
+  if (st.log.some((e) => e.npc === id)) return;
+  const npc = NPCS[id];
+  if (npc?.greeting) st.log.push({ who: npc.name, kind: 'npc', text: npc.greeting, npc: id });
+}
+
 function persist(): void {
   if (currentCase && s) {
     save.current = { caseId: currentCase.id, state: s };
@@ -82,9 +96,10 @@ function renderTitle(): void {
   logo.src = LOGO;
   logo.alt = '사건파일 503호';
   box.append(logo);
-  box.append(el('p', 'eyebrow', 'AI 심문 추리, 퇴근길 3분'));
-  box.append(el('p', 'concept', '가상 중소기업 두잇상사의 소동 전담 창구. 누구든 심문한다. 단서를 들이대라.'));
-  box.append(el('p', 'ai-badge', '🤖 NPC 답변은 실시간 AI로 생성됩니다'));
+  box.append(el('p', 'eyebrow', '퇴근길 3분, 직접 물어보는 AI 심문 추리'));
+  box.append(el('p', 'concept', '두잇상사 소동 전담 창구 503호 — 오늘도 사건이 접수됐습니다.'));
+  box.append(el('p', 'loop-preview', '심문하고 → 단서를 들이대고 → 범인을 지목하세요'));
+  box.append(el('p', 'ai-badge', 'NPC의 답변은 실시간 AI 생성 — 같은 질문에 같은 답은 없습니다'));
   for (const c of CASES) {
     const idx = CASES.indexOf(c);
     const locked = idx > 0 && !save.cleared?.includes(CASES[idx - 1].id);
@@ -95,7 +110,7 @@ function renderTitle(): void {
       thumb.src = CASE_CARD[c.id];
       btn.append(thumb);
     }
-    btn.append(el('span', '', `${done ? '✅ ' : ''}${c.title}${locked ? ' 🔒' : ''}`));
+    btn.append(el('span', '', `${done ? '[완료] ' : ''}${c.title}${locked ? ' [잠금]' : ''}`));
     btn.disabled = !!locked;
     btn.onclick = () => { void startCase(c); };
     box.append(btn);
@@ -141,6 +156,10 @@ function pushReveals(st: GameState, fc: ServerCaseData, ids: string[]): void {
   for (const id of ids) {
     const cl = fc.clues.find((x) => x.id === id);
     if (!cl?.reveal) continue;
+    if (cl.holder === 'system') {
+      st.log.push({ who: '기록', kind: 'sys', text: `📁 ${cl.reveal}` });
+      continue;
+    }
     const holderName = NPCS[cl.holder]?.name ?? '???';
     // 콘텐츠의 "차민재: ..." 화자 접두는 버블 레이블과 중복 — 제거
     const text = cl.reveal.replace(new RegExp(`^${holderName}:\\s*`), '');
@@ -156,6 +175,7 @@ function syncArmed(st: GameState, meta: { armedChains?: Record<string, true> }):
 }
 
 function announceUnlocks(st: GameState, fc: ServerCaseData, unlocked: Array<{ id: string; title: string; reveal?: string }>): void {
+  const beforeCount = st.foundClues.length; // 자동 획득(브리핑) 단서만 있던 상태인지
   for (const u of unlocked) {
     if (st.foundClues.includes(u.id)) continue;
     st.foundClues.push(u.id);
@@ -163,11 +183,27 @@ function announceUnlocks(st: GameState, fc: ServerCaseData, unlocked: Array<{ id
     const pub = currentCase?.clues.find((x) => x.id === u.id);
     st.log.push({ who: '시스템', kind: 'sys', text: `🔎 단서 획득: ${pub?.title ?? u.title}` });
   }
+  if (beforeCount <= 1 && st.foundClues.length > beforeCount) {
+    st.log.push({ who: '시스템', kind: 'sys', text: '단서는 [제시] 버튼으로 상대에게 들이댈 수 있습니다. 제시는 턴을 쓰지 않습니다.' });
+  }
   pushReveals(st, fc, unlocked.map((u) => u.id));
 }
 
 function armHint(st: GameState): void {
-  st.log.push({ who: '시스템', kind: 'sys', text: '💢 상대가 크게 동요했다 — 이 선에서 더 캐물을 수 있을 것 같다.' });
+  st.log.push({ who: '시스템', kind: 'sys', text: '상대가 크게 동요했습니다. 이 선에서 더 캐물을 수 있습니다.' });
+}
+
+/** 목업 경로용: 첫 수득 단서라면 제시 튜토리얼 1회 */
+function tutorialIfFirst(st: GameState, beforeCount: number): void {
+  if (beforeCount <= 1 && st.foundClues.length > beforeCount) {
+    st.log.push({ who: '시스템', kind: 'sys', text: '단서는 [제시] 버튼으로 상대에게 들이댈 수 있습니다. 제시는 턴을 쓰지 않습니다.' });
+  }
+}
+
+/** 제시 적중 시 플레이어 대사를 추궁 시그니처로 교체 */
+function signatureOnHit(st: GameState): void {
+  const lastMe = [...st.log].reverse().find((e) => e.kind === 'me');
+  if (lastMe) lastMe.text = `${lastMe.text} — 그건 어떻게 설명하시죠?`;
 }
 
 function afterTurn(st: GameState): void {
@@ -214,6 +250,7 @@ async function handleAsk(npc: NpcPublic, fc: ServerCaseData, st: GameState, text
   ask(npc, fc, st, text);
   const newIds = st.foundClues.filter((id) => !cluesBefore.has(id));
   pushReveals(st, fc, newIds);
+  tutorialIfFirst(st, cluesBefore.size);
   if (newIds.length === 0 && Object.keys(st.armedChains ?? {}).some((k) => !armedBefore.has(k))) armHint(st);
   afterTurn(st);
 }
@@ -229,11 +266,12 @@ async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, 
       announceUnlocks(st, fc, meta.unlocked);
       if (meta.unlocked.length > 0 || newArm) {
         (st.shaken ??= {})[npc.id] = true;
-        if (meta.unlocked.length === 0) armHint(st); // 1단 적중 — 체인 발동 대기
+        if (meta.unlocked.length > 0) signatureOnHit(st);
+        else armHint(st); // 1단 적중 — 체인 발동 대기
       } else {
         st.npc[npc.id].defense = Math.min(3, st.npc[npc.id].defense + 1);
         st.presentWrong += 1;
-        st.log.push({ who: '시스템', kind: 'sys', text: '이 단서는 통하지 않는 것 같다. (상대의 경계 +1)' });
+        st.log.push({ who: '시스템', kind: 'sys', text: '통하지 않았습니다. 상대의 경계가 올랐습니다. (경계 +1)' });
       }
       persist(); render();
       return;
@@ -241,13 +279,16 @@ async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, 
       st.log.pop();
     }
   }
+  const cluesBefore = new Set(st.foundClues);
   const res = present(npc, fc, st, clueId);
   pushReveals(st, fc, res.unlocked);
+  tutorialIfFirst(st, cluesBefore.size);
   if (res.unlocked.length > 0 || res.armed.length > 0) {
     (st.shaken ??= {})[npc.id] = true;
-    if (res.unlocked.length === 0) armHint(st);
+    if (res.unlocked.length > 0) signatureOnHit(st);
+    else armHint(st);
   } else if (res.defenseUp) {
-    st.log.push({ who: '시스템', kind: 'sys', text: '이 단서는 통하지 않는 것 같다. (상대의 경계 +1)' });
+    st.log.push({ who: '시스템', kind: 'sys', text: '통하지 않았습니다. 상대의 경계가 올랐습니다. (경계 +1)' });
   }
   persist(); render();
 }
@@ -290,7 +331,7 @@ function render(): void {
   const side = el('aside', 'side');
   side.append(el('h1', 'case-title', c.title));
   if (st.phase !== 'briefing') {
-    side.append(el('p', 'turn-counter', `남은 심문: ${st.turnLeft}${st.turnLeft <= TURN_WARN ? ' ⚠️ 마감 임박' : ''}`));
+    side.append(el('p', 'turn-counter', `남은 질문: ${st.turnLeft}회${st.turnLeft <= TURN_WARN ? ' — 마감 임박' : ''}`));
   }
 
   if (st.phase === 'briefing') {
@@ -300,9 +341,20 @@ function render(): void {
       side.append(card);
     }
     side.append(el('p', 'briefing', c.briefing));
-    side.append(el('p', 'cap-line', '503호 창구: 누구든 심문하고 단서를 들이댈 수 있습니다.'));
+    if (c.clientVoice) {
+      const cv = el('p', 'client-voice');
+      cv.append(el('span', 'client-voice-name', `${NPCS[c.client]?.name ?? '의뢰인'}의 말`));
+      cv.append(el('q', '', c.clientVoice));
+      side.append(cv);
+    }
+    const guide = el('div', 'guide-box');
+    guide.append(el('strong', '', '수사 방법'));
+    guide.append(el('p', '', '① 왼쪽에서 심문할 사람을 고르고 자유롭게 질문하세요. 선택지는 없습니다. (질문 1회 = 1턴)'));
+    guide.append(el('p', '', '② 얻은 단서는 [제시]로 들이대세요. 제시는 턴을 쓰지 않습니다.'));
+    guide.append(el('p', '', '③ 핵심 단서를 모아 [범인 지목]. 24턴 안에 결론을 내야 합니다.'));
+    side.append(guide);
     const start = el('button', 'btn primary', '심문 시작');
-    start.onclick = () => { st.phase = 'interrogate'; persist(); render(); };
+    start.onclick = () => { st.phase = 'interrogate'; greetIfNew(st, st.activeSuspect); persist(); render(); };
     side.append(start);
   } else {
     side.append(el('h2', 'sec', '용의자'));
@@ -319,7 +371,7 @@ function render(): void {
       const cd = defenseSpan(st, c.client);
       if (cd) cText.append(cd);
       card.append(cText);
-      card.onclick = () => { st.activeSuspect = c.client; persist(); render(); };
+      card.onclick = () => { st.activeSuspect = c.client; greetIfNew(st, c.client); persist(); render(); };
       side.append(card);
     }
     for (const id of c.suspects) {
@@ -334,7 +386,7 @@ function render(): void {
       const dm = defenseSpan(st, id);
       if (dm) textWrap.append(dm);
       card.append(textWrap);
-      card.onclick = () => { st.activeSuspect = id; persist(); render(); };
+      card.onclick = () => { st.activeSuspect = id; greetIfNew(st, id); persist(); render(); };
       side.append(card);
     }
     if (c.witness) {
@@ -349,7 +401,7 @@ function render(): void {
       const wd = defenseSpan(st, c.witness);
       if (wd) wText.append(wd);
       card.append(wText);
-      card.onclick = () => { st.activeSuspect = c.witness!; persist(); render(); };
+      card.onclick = () => { st.activeSuspect = c.witness!; greetIfNew(st, c.witness!); persist(); render(); };
       side.append(card);
     }
     side.append(el('h2', 'sec', `단서 ${st.foundClues.length}/${c.clues.length}`));
@@ -401,6 +453,20 @@ function render(): void {
 
   if (st.phase === 'interrogate') {
     const npc = NPCS[st.activeSuspect];
+    if (st.turnsUsed === 0) {
+      const chips = el('div', 'chips');
+      chips.append(el('span', 'chips-label', '이렇게 물어보세요:'));
+      for (const q of EXAMPLE_CHIPS[c.id] ?? []) {
+        const chip = el('button', 'chip', q);
+        chip.type = 'button';
+        chip.onclick = () => {
+          const inp = document.querySelector<HTMLInputElement>('form.input-bar input');
+          if (inp) { inp.value = q; inp.focus(); }
+        };
+        chips.append(chip);
+      }
+      main.append(chips);
+    }
     const form = el('form', 'input-bar');
     const input = el('input');
     input.placeholder = `${npc.name}에게 질문… (Enter 전송)`;
@@ -422,7 +488,7 @@ function render(): void {
     main.append(form);
   } else if (st.phase === 'accuse') {
     main.append(el('h2', 'sec', c.question));
-    main.append(el('p', 'dim', '범인 1명과 결정적 단서(최대 2개)를 골라 제출하세요. 어떤 조합이 정답인지는 사걸마다 다릅니다.'));
+    main.append(el('p', 'dim', '범인 1명과 결정적 단서(최대 2개)를 골라 제출하세요.'));
     let pickedNpc: string | null = null;
     const pickedClues = new Set<string>();
     const npcRow = el('div', 'accuse-row');
@@ -453,7 +519,7 @@ function render(): void {
       clueWrap.append(b);
     }
     main.append(clueWrap);
-    if (st.foundClues.length < 2) main.append(el('p', 'dim', '⚠️ 핵심 단서가 부족합니다. 그래도 제출할 수는 있습니다.'));
+    if (st.foundClues.length < 2) main.append(el('p', 'dim', '단서가 부족합니다. 그래도 지목할 수는 있습니다.'));
     submit.onclick = () => {
       if (!pickedNpc) return;
       void handleAccuse(fc, st, pickedNpc, [...pickedClues]);
@@ -540,7 +606,7 @@ function renderResult(c: PublicCaseData, fc: ServerCaseData, st: GameState, main
   if (missing > 0) main.append(el('p', 'dim', `숨겨진 단서 ${missing}개가 남아 있습니다.`));
   const share = el('button', 'btn', '결과 카드 복사');
   share.onclick = () => {
-    const text = `사건파일 503호 「${c.title}」 — 등급 ${g} (남은 심문 ${st.turnLeft}, 단서 ${st.foundClues.length}/${c.clues.length})`;
+    const text = `사건파일 503호 「${c.title}」 — 등급 ${g} (질문 ${st.turnsUsed}회, 단서 ${st.foundClues.length}/${c.clues.length})`;
     void navigator.clipboard?.writeText(text);
     share.textContent = '복사됨 ✓';
   };
@@ -560,4 +626,24 @@ function renderResult(c: PublicCaseData, fc: ServerCaseData, st: GameState, main
 }
 
 initRemote();
+
+// CRT 스캔라인 강도 토글 (우하단 고정, 심사 조건 방어)
+const CRT_LEVELS: Array<[string, number]> = [['기본', 0.5], ['약함', 0.2], ['끔', 0]];
+(function crtToggle(): void {
+  let idx = Math.min(CRT_LEVELS.length - 1, Math.max(0, Number(localStorage.getItem('nan503.crt') ?? 0) || 0));
+  const btn = document.createElement('button');
+  btn.className = 'crt-toggle';
+  const apply = (): void => {
+    document.body.style.setProperty('--scan', String(CRT_LEVELS[idx][1]));
+    btn.textContent = `CRT 효과: ${CRT_LEVELS[idx][0]}`;
+  };
+  btn.onclick = () => {
+    idx = (idx + 1) % CRT_LEVELS.length;
+    localStorage.setItem('nan503.crt', String(idx));
+    apply();
+  };
+  apply();
+  document.body.append(btn);
+})();
+
 renderTitle();
