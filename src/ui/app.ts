@@ -6,6 +6,7 @@ import {
   GameState, TURN_WARN, WITNESS_COST,
 } from '../game/engine';
 import { initRemote, remoteAccuse, remoteAsk, remoteEnabled } from '../game/remote';
+import { CASE_CARD, LOGO, NPC_AVATAR, NPC_VARIANT, WALLPAPER } from '../assets';
 
 let remoteEnding: ServerCaseData['ending'] | null = null;
 
@@ -33,6 +34,21 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
   return e;
 }
 
+/** 동요한 NPC는 붕괴 표정으로 전환, 아니면 베이스 */
+function avatarFor(id: string, st: GameState): string {
+  if (st.shaken?.[id] && NPC_VARIANT[id]) return NPC_VARIANT[id].breakdown;
+  return NPC_AVATAR[id] ?? '';
+}
+
+function avatarImg(id: string, st: GameState, cls: string): HTMLImageElement | null {
+  const src = avatarFor(id, st);
+  if (!src) return null;
+  const img = el('img', cls) as HTMLImageElement;
+  img.src = src;
+  img.alt = NPCS[id]?.name ?? id;
+  return img;
+}
+
 function persist(): void {
   if (currentCase && s) {
     save.current = { caseId: currentCase.id, state: s };
@@ -49,16 +65,26 @@ async function loadFullCase(id: string): Promise<ServerCaseData | null> {
 // ─── 화면 ───
 function renderTitle(): void {
   app.innerHTML = '';
+  document.body.style.backgroundImage = `url(${WALLPAPER})`;
   const box = el('div', 'title-screen');
+  const logo = el('img', 'logo-img') as HTMLImageElement;
+  logo.src = LOGO;
+  logo.alt = '사건파일 503호';
+  box.append(logo);
   box.append(el('p', 'eyebrow', 'AI 심문 추리, 퇴근길 3분'));
-  box.append(el('h1', '', '사건파일 503호'));
   box.append(el('p', 'concept', '가상 중소기업 두잇상사의 소동 전담 창구. 누구든 심문한다. 단서를 들이대라.'));
   box.append(el('p', 'ai-badge', '🤖 NPC 답변은 실시간 AI로 생성됩니다'));
   for (const c of CASES) {
     const idx = CASES.indexOf(c);
     const locked = idx > 0 && !save.cleared?.includes(CASES[idx - 1].id);
     const done = save.cleared?.includes(c.id);
-    const btn = el('button', 'btn case-pick', `${done ? '✅ ' : ''}${c.title}${locked ? ' 🔒' : ''}`);
+    const btn = el('button', 'btn case-pick');
+    if (CASE_CARD[c.id]) {
+      const thumb = el('img', 'case-thumb') as HTMLImageElement;
+      thumb.src = CASE_CARD[c.id];
+      btn.append(thumb);
+    }
+    btn.append(el('span', '', `${done ? '✅ ' : ''}${c.title}${locked ? ' 🔒' : ''}`));
     btn.disabled = !!locked;
     btn.onclick = () => { void startCase(c); };
     box.append(btn);
@@ -158,7 +184,9 @@ async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, 
           st.log.push({ who: '시스템', kind: 'sys', text: `🔎 단서 획득: ${u.title}` });
         }
       }
-      if (meta.unlocked.length === 0) {
+      if (meta.unlocked.length > 0) {
+        (st.shaken ??= {})[npc.id] = true;
+      } else {
         st.npc[npc.id].defense = Math.min(3, st.npc[npc.id].defense + 1);
         st.presentWrong += 1;
       }
@@ -168,11 +196,13 @@ async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, 
       st.log.pop();
     }
   }
-  present(npc, fc, st, clueId);
+  const res = present(npc, fc, st, clueId);
+  if (res.unlocked.length > 0 || res.armed.length > 0) (st.shaken ??= {})[npc.id] = true;
   persist(); render();
 }
 
 async function handleAccuse(fc: ServerCaseData, st: GameState, culpritId: string, clueIds: string[]): Promise<void> {
+  st.accusedId = culpritId;
   if (remoteEnabled()) {
     try {
       const r = await remoteAccuse(fc, st, culpritId, clueIds);
@@ -211,6 +241,11 @@ function render(): void {
   side.append(el('p', 'turn-counter', `남은 심문: ${st.turnLeft}${st.turnLeft <= TURN_WARN ? ' ⚠️ 마감 임박' : ''}`));
 
   if (st.phase === 'briefing') {
+    if (CASE_CARD[c.id]) {
+      const card = el('img', 'briefing-card') as HTMLImageElement;
+      card.src = CASE_CARD[c.id];
+      side.append(card);
+    }
     side.append(el('p', 'briefing', c.briefing));
     side.append(el('p', 'cap-line', '503호 창구: 누구든 심문하고 단서를 들이댈 수 있습니다.'));
     const start = el('button', 'btn primary', '심문 시작');
@@ -223,8 +258,12 @@ function render(): void {
       const npc = NPCS[c.client];
       const card = el('button', `suspect client${c.client === st.activeSuspect ? ' active' : ''}`);
       card.style.setProperty('--c', npc.color);
-      card.append(el('strong', '', `${npc.name} · ${npc.role}`));
-      card.append(el('span', 'one-liner', '의뢰인 (심문 가능)'));
+      const cav = avatarImg(c.client, st, 'suspect-avatar');
+      if (cav) card.append(cav);
+      const cText = el('span', 'suspect-text');
+      cText.append(el('strong', '', `${npc.name} · ${npc.role}`));
+      cText.append(el('span', 'one-liner', '의뢰인 (심문 가능)'));
+      card.append(cText);
       card.onclick = () => { st.activeSuspect = c.client; persist(); render(); };
       side.append(card);
     }
@@ -232,8 +271,12 @@ function render(): void {
       const npc = NPCS[id];
       const card = el('button', `suspect${id === st.activeSuspect ? ' active' : ''}`);
       card.style.setProperty('--c', npc.color);
-      card.append(el('strong', '', `${npc.name} · ${npc.role}`));
-      card.append(el('span', 'one-liner', npc.oneLiner));
+      const av = avatarImg(id, st, 'suspect-avatar');
+      if (av) card.append(av);
+      const textWrap = el('span', 'suspect-text');
+      textWrap.append(el('strong', '', `${npc.name} · ${npc.role}`));
+      textWrap.append(el('span', 'one-liner', npc.oneLiner));
+      card.append(textWrap);
       card.onclick = () => { st.activeSuspect = id; persist(); render(); };
       side.append(card);
     }
@@ -241,8 +284,12 @@ function render(): void {
       const w = NPCS[c.witness];
       const card = el('button', `suspect witness${c.witness === st.activeSuspect ? ' active' : ''}`);
       card.style.setProperty('--c', w.color);
-      card.append(el('strong', '', `${w.name} · ${w.role}`));
-      card.append(el('span', 'one-liner', `목격자? (심문 1회 = 2턴)`));
+      const wav = avatarImg(c.witness, st, 'suspect-avatar');
+      if (wav) card.append(wav);
+      const wText = el('span', 'suspect-text');
+      wText.append(el('strong', '', `${w.name} · ${w.role}`));
+      wText.append(el('span', 'one-liner', `목격자? (심문 1회 = 2턴)`));
+      card.append(wText);
       card.onclick = () => { st.activeSuspect = c.witness!; persist(); render(); };
       side.append(card);
     }
@@ -276,6 +323,10 @@ function render(): void {
   for (const e of st.log) {
     if (e.npc && e.npc !== npcFilter && st.phase === 'interrogate') continue;
     const row = el('div', `msg ${e.kind}`);
+    if (e.kind === 'npc' && e.npc) {
+      const av = avatarImg(e.npc, st, 'msg-avatar');
+      if (av) row.append(av);
+    }
     row.append(el('span', 'who', e.who));
     row.append(el('div', 'bubble', e.text));
     log.append(row);
@@ -346,6 +397,14 @@ function render(): void {
     if (st.verdict === 'win') {
       renderResult(c, fc, st, main);
     } else {
+      // 지목 실패 — 버텨낸 용의자의 여유 미소 (코미디)
+      if (st.accusedId && NPC_VARIANT[st.accusedId]) {
+        const p = el('img', 'verdict-portrait') as HTMLImageElement;
+        p.src = NPC_VARIANT[st.accusedId].smile;
+        p.alt = NPCS[st.accusedId]?.name ?? st.accusedId;
+        main.append(p);
+        main.append(el('p', 'verdict-caption', `${NPCS[st.accusedId]?.name ?? ''} — 아쉽게도 빠져나갔습니다. 결정적 한 방이 부족했습니다.`));
+      }
       const retryBtn = el('button', 'btn primary', `재도전 (턴 +3, 남은 기회 ${st.retriesLeft})`);
       retryBtn.disabled = st.retriesLeft <= 0;
       retryBtn.onclick = () => { applyRetry(st); persist(); render(); };
@@ -369,6 +428,15 @@ function render(): void {
 
 function renderResult(c: PublicCaseData, fc: ServerCaseData, st: GameState, main: HTMLElement): void {
   const ending = remoteEnding ?? fc.ending;
+  // 지목 성공 — 붕괴 표정 전면 포트레이트 (폭로 연출)
+  if (st.verdict === 'win' && st.accusedId && NPC_VARIANT[st.accusedId]) {
+    (st.shaken ??= {})[st.accusedId] = true;
+    const p = el('img', 'verdict-portrait breakdown') as HTMLImageElement;
+    p.src = NPC_VARIANT[st.accusedId].breakdown;
+    p.alt = NPCS[st.accusedId]?.name ?? st.accusedId;
+    main.append(p);
+    main.append(el('p', 'verdict-caption', `${NPCS[st.accusedId]?.name ?? ''} — 더 이상 빠져나갈 곳이 없습니다.`));
+  }
   if (st.verdict === 'win' && !st.endChoice) {
     main.append(el('div', 'verdict-box', ending.win));
     if (ending.twist) main.append(el('div', 'twist-box', ending.twist));

@@ -30,6 +30,10 @@ export interface GameState {
   retriesLeft: number;
   verdict: 'none' | 'win' | 'partial' | 'lose';
   endChoice: 'a' | 'b' | null;
+  /** 단서 제시 적중으로 동요한 NPC (포트레이트 표정 전환용) */
+  shaken?: Record<string, true>;
+  /** 플레이어가 지목한 용의자 (판정 화면 포트레이트용) */
+  accusedId?: string | null;
 }
 
 export const TURN_BUDGET = 24;

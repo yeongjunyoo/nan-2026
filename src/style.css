@@ -74,3 +74,44 @@ body { margin: 0; background: var(--bg); color: var(--tx); }
 .grade-S { color: #ffd45e; } .grade-A { color: #7fd6a4; } .grade-B { color: #7fb0d6; } .grade-C { color: #9aa0b8; }
 .dim { color: var(--mut); font-size: 13px; }
 .suspect.witness { border-left-style: dashed; }
+
+/* ─── 에셋 적용 (도트 이미지) ─── */
+body {
+  background-color: #0e0f16;
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: rgba(10, 11, 20, 0.55);
+}
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,0.16) 0 1px, transparent 1px 3px);
+  opacity: 0.5;
+}
+.layout, .title-screen { position: relative; z-index: 2; }
+
+img.logo-img { width: min(560px, 92%); image-rendering: pixelated; display: block; margin: 0 auto; }
+img.case-thumb { width: 100%; max-width: 260px; image-rendering: pixelated; display: block; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 6px; }
+img.suspect-avatar { width: 56px; height: 56px; image-rendering: pixelated; border-radius: 6px; flex-shrink: 0; background: #1a1b2e; }
+.suspect { display: flex; align-items: center; gap: 10px; }
+.suspect-text { display: flex; flex-direction: column; text-align: left; }
+img.msg-avatar { width: 32px; height: 32px; image-rendering: pixelated; border-radius: 6px; background: #1a1b2e; flex-shrink: 0; align-self: flex-start; }
+.msg { display: flex; gap: 8px; align-items: flex-start; }
+.msg.me { flex-direction: row-reverse; }
+img.briefing-card { width: 100%; image-rendering: pixelated; border-radius: 8px; border: 1px solid var(--line); margin-bottom: 12px; }
+img.verdict-portrait {
+  display: block; margin: 4px auto 8px; width: min(280px, 68vw);
+  image-rendering: pixelated; border-radius: 10px;
+  border: 2px solid var(--line); background: #1a1b2e;
+  box-shadow: 0 0 0 4px rgba(0,0,0,0.35), 0 12px 32px rgba(0,0,0,0.5);
+}
+img.verdict-portrait.breakdown { border-color: #5c2f2f; box-shadow: 0 0 0 4px rgba(92,47,47,0.35), 0 12px 32px rgba(0,0,0,0.5); }
+.verdict-caption { text-align: center; color: var(--mut); font-size: 13px; margin: 0 0 14px; }
+@media (prefers-reduced-motion: reduce) {
+  body::after { display: none; }
+}
