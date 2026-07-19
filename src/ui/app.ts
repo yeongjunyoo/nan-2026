@@ -130,7 +130,10 @@ function pushReveals(st: GameState, fc: ServerCaseData, ids: string[]): void {
   for (const id of ids) {
     const cl = fc.clues.find((x) => x.id === id);
     if (!cl?.reveal) continue;
-    st.log.push({ who: NPCS[cl.holder]?.name ?? '???', kind: 'npc', text: cl.reveal, npc: cl.holder });
+    const holderName = NPCS[cl.holder]?.name ?? '???';
+    // 콘텐츠의 "차민재: ..." 화자 접두는 버블 레이블과 중복 — 제거
+    const text = cl.reveal.replace(new RegExp(`^${holderName}:\\s*`), '');
+    st.log.push({ who: holderName, kind: 'npc', text, npc: cl.holder });
   }
 }
 
