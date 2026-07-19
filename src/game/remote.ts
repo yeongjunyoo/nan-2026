@@ -7,14 +7,18 @@ import type { NpcPublic, ServerCaseData } from './types';
 export let REMOTE_URL = '';
 let sessionToken = '';
 
+const DEFAULT_PROXY = 'https://nan503-proxy.apple021104.workers.dev';
+
 export function initRemote(): void {
   const params = new URLSearchParams(location.search);
   const q = params.get('remote');
   if (q) {
     REMOTE_URL = q;
     localStorage.setItem('nan503.remote', q);
+  } else if (params.get('mock') !== null) {
+    REMOTE_URL = ''; // ?mock — 목업 모드 강제 (오프라인/디버그)
   } else {
-    REMOTE_URL = localStorage.getItem('nan503.remote') ?? '';
+    REMOTE_URL = localStorage.getItem('nan503.remote') ?? DEFAULT_PROXY;
   }
   sessionToken = localStorage.getItem('nan503.session') ?? '';
 }
