@@ -6,11 +6,39 @@ import { bumpSession, issueSession, verify } from './state';
 import { buildPrompt, checkInput, litmus } from './prompt';
 import { findUnlocks, judge } from './clue';
 import { streamAsk } from './llm';
+import { streamAskOpenAI } from './llm_openai';
 
 interface Env {
   ANTHROPIC_API_KEY: string;
+  LLM_API_KEY?: string;
+  LLM_PROVIDER?: string; // 'gemini' (기본) | 'anthropic' | 'openai'
+  LLM_MODEL?: string;
+  LLM_BASE_URL?: string;
   STATE_SECRET: string;
   ALLOWED_ORIGIN: string;
+}
+
+const PROVIDER_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
+  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-3.1-flash-lite' },
+  openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4-nano' },
+  glm: { baseUrl: 'https://api.z.ai/api/paas/v4', model: 'GLM-4.7-FlashX' },
+};
+
+function llmStream(env: Env, systemBlocks: Array<{ type: 'text'; text: string }>, userText: string) {
+  const provider = env.LLM_PROVIDER ?? 'gemini';
+  if (provider === 'anthropic') {
+    return streamAsk(env.ANTHROPIC_API_KEY, systemBlocks, userText);
+  }
+  const d = PROVIDER_DEFAULTS[provider] ?? PROVIDER_DEFAULTS.gemini;
+  return streamAskOpenAI(
+    {
+      baseUrl: env.LLM_BASE_URL ?? d.baseUrl,
+      apiKey: env.LLM_API_KEY ?? '',
+      model: env.LLM_MODEL ?? d.model,
+    },
+    systemBlocks.map((b) => b.text).join('\n\n'),
+    userText,
+  );
 }
 
 function cors(env: Env): Record<string, string> {
@@ -101,7 +129,7 @@ export default {
         let replyText = '';
         let replyObj: any = null;
         let metrics: unknown = null;
-        for await (const ev of streamAsk(env.ANTHROPIC_API_KEY, prompt.system, playerText)) {
+        for await (const ev of llmStream(env, prompt.system, playerText)) {
           if (ev.type === 'delta') {
             replyText += ev.text;
             await send('delta', { text: ev.text });
