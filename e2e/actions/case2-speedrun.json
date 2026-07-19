@@ -1,0 +1,20 @@
+[
+  { "note": "런2 인폼드 스피드런 — OR 조합 반대편(d5 시인) 검증 + 선택지 A + S등급 화면 캡처" },
+  { "suspect": "이상록" },
+  { "ask": "어제 뭐 하셨어요? 문서 정리 당번이었다던데요?" },
+  { "ask": "파쇄함에 뭐 버리셨어요?" },
+  { "shot": "run2_d3_unlocked" },
+  { "present": "파쇄함 조각" },
+  { "shot": "run2_confession" },
+  { "accuseOpen": true },
+  { "shot": "run2_accuse" },
+  { "accusePick": "이상록" },
+  { "accuseClues": ["파쇄함 조각", "이상록의 시인"] },
+  { "accuseSubmit": true },
+  { "waitMs": 1200 },
+  { "shot": "run2_win_choice" },
+  { "choice": "규정대로 보고한다" },
+  { "waitMs": 1000 },
+  { "shot": "run2_grade" },
+  { "expectText": "등급 S" }
+]

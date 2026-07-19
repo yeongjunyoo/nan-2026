@@ -1,0 +1,22 @@
+[
+  { "shot": "interrogate_start" },
+  { "ask": "어제 야근하셨죠? 몇 시에 퇴근하셨어요?" },
+  { "shot": "clue_c5_alibi" },
+  { "ask": "탕비실 쓰레기통에 빈 푸딩 용기 버려진 거 봤어요?" },
+  { "suspect": "마루팡" },
+  { "ask": "마루팡 과장님은 어제 몇 시에 퇴근하셨어요?" },
+  { "suspect": "구본식" },
+  { "present": "빈 푸딩 용기" },
+  { "shot": "present_c1_gu_shaken" },
+  { "ask": "부장실 휴지통 누가 비웠어요? 캐러멜 소스 포장지 얘기가 있던데요." },
+  { "shot": "clue_c3_caramel" },
+  { "present": "캐러멜 소스" },
+  { "shot": "clue_c4_bloodsugar" },
+  { "accuseOpen": true },
+  { "shot": "accuse_screen" },
+  { "accusePick": "구본식" },
+  { "accuseClues": ["캐러멜 소스", "혈당"] },
+  { "accuseSubmit": true },
+  { "shot": "result_win" },
+  { "expectText": "등급 S" }
+]

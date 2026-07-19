@@ -1,0 +1,66 @@
+[
+  { "note": "런1 블라인드 캐주얼 — 잡담/호기심 위주, 오제시 2회, 약한 지목→패배→재도전→승리 시도" },
+  { "shot": "interrogate_start" },
+
+  { "suspect": "차민재" },
+  { "ask": "어제 회식 어땠어요? 뭐 먹었어요? 1차 2차 다 가셨어요?" },
+  { "ask": "뭐 숨기는 거 없어요? 있으면 지금 말해요." },
+  { "shot": "chitchat_cha" },
+
+  { "suspect": "전순덕" },
+  { "ask": "그 23만원 누가 결제했어요? 카드사 승인 내역 확인해 보셨어요?" },
+
+  { "suspect": "구본식" },
+  { "ask": "부장님, 어제 회식에서 누가 계산했는지 아세요?" },
+  { "ask": "요즘 영업팀 분위기 어때요? 회식 자주 하세요?" },
+  { "shot": "chitchat_gu" },
+
+  { "suspect": "오복자" },
+  { "ask": "어제 사무실에서 이상한 거 못 보셨어요? 뭐든 좋아요." },
+  { "shot": "witness_talk" },
+
+  { "suspect": "이상록" },
+  { "ask": "어제 뭐 하셨어요? 퇴근은 몇 시에 하셨어요?" },
+  { "ask": "혹시 뭐 숨기는 거 없어요? 솔직하게 말해 봐요." },
+  { "shot": "chitchat_lee" },
+
+  { "note": "오제시 1 — 무관한 공지 메일을 이상록에게" },
+  { "present": "마감 공지 메일" },
+  { "shot": "wrong_present_lee" },
+
+  { "suspect": "구본식" },
+  { "note": "오제시 2 — 같은 메일을 구본식에게" },
+  { "present": "마감 공지 메일" },
+  { "shot": "wrong_present_gu" },
+
+  { "note": "약한 지목 — 구본식(헷갈리는 용의자) + 무관 단서 1개" },
+  { "accuseOpen": true },
+  { "shot": "accuse_screen_weak" },
+  { "accusePick": "구본식" },
+  { "accuseClues": ["마감 공지 메일"] },
+  { "accuseSubmit": true },
+  { "shot": "defeat_smile" },
+  { "expectText": "빠져나갔습니다" },
+
+  { "retry": true },
+  { "shot": "retry_back" },
+  { "expectText": "남은 심문" },
+
+  { "suspect": "이상록" },
+  { "ask": "파쇄함에 어제 뭐 버리셨어요? 다 봤어요." },
+  { "shot": "clue_after_shredder" },
+  { "ask": "어제 문서 정리 당번이셨죠? 책상 위 정리 더미는 뭐예요?" },
+  { "present": "파쇄함 조각" },
+  { "shot": "present_shredder_to_lee" },
+  { "ask": "그거 영수증이었어요? 솔직히 말해 봐요." },
+  { "shot": "before_final_accuse" },
+
+  { "accuseOpen": true },
+  { "shot": "accuse_screen_final" },
+  { "accusePick": "이상록" },
+  { "accuseClues": ["파쇄함 조각", "정리 더미"] },
+  { "accuseSubmit": true },
+  { "waitMs": 1500 },
+  { "shot": "final_result" },
+  { "expectText": "등급" }
+]

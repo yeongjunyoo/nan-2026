@@ -43,7 +43,8 @@ export interface NpcServer {
   speechRules: string[];
   forbidden: string[];
   secrets: Record<string, string>;
-  knowledge: string[];
+  /** 사걸별 스코프 필수 (common + 사건 id) — 미스코프 지식 주입 시 다른 사건 내용 누설 사고 있었음 */
+  knowledge: Record<string, string[]>;
 }
 
 // ─── 사건 공개 데이터 (클리이언트) ───

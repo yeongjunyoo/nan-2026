@@ -29,7 +29,7 @@ export function buildPrompt(npc: NpcPublic, srv: NpcServer, c: ServerCaseData, s
     `[안전] 욕설·혐오·정치·시사·실존 브랜드 언급 금지. 집단 일반화 금지.`,
   ].join('\n\n');
 
-  const knowledge = srv.knowledge.map((k) => `- ${k}`).join('\n');
+  const knowledge = [...(srv.knowledge.common ?? []), ...(srv.knowledge[c.id] ?? [])].map((k) => `- ${k}`).join('\n');
   const caseBlock = [
     `[사건] 「${c.title}」 — ${c.briefing}`,
     `[당신이 아는 것]\n${knowledge}`,

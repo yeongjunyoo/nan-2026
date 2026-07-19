@@ -42,6 +42,8 @@ export interface MetaPayload {
   defenseDelta: number;
   refuse: boolean;
   unlocked: Array<{ id: string; title: string; desc: string; reveal: string }>;
+  /** 서버가 확정한 armedChains 스냅샷 (2단 체인 — 클라가 그대로 채택) */
+  armedChains?: Record<string, true>;
   token: string;
   metrics: unknown;
 }

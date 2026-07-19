@@ -125,6 +125,35 @@ function markCleared(id: string): void {
 }
 
 // ─── 액션 핸들러 (원격 우선, 실패 시 목업 폴리백) ───
+/** 해금된 단서의 reveal 대사를 단서 소유자 NPC의 입으로 출력 (심문 판타지 핵심) */
+function pushReveals(st: GameState, fc: ServerCaseData, ids: string[]): void {
+  for (const id of ids) {
+    const cl = fc.clues.find((x) => x.id === id);
+    if (!cl?.reveal) continue;
+    st.log.push({ who: NPCS[cl.holder]?.name ?? '???', kind: 'npc', text: cl.reveal, npc: cl.holder });
+  }
+}
+
+/** 서버 armedChains 스냅샷 동기화. 새로 arm된 단서가 있으면 true */
+function syncArmed(st: GameState, meta: { armedChains?: Record<string, true> }): boolean {
+  const before = new Set(Object.keys(st.armedChains ?? {}));
+  if (meta.armedChains) st.armedChains = { ...meta.armedChains };
+  return Object.keys(st.armedChains ?? {}).some((k) => !before.has(k));
+}
+
+function announceUnlocks(st: GameState, fc: ServerCaseData, unlocked: Array<{ id: string; title: string; reveal?: string }>): void {
+  for (const u of unlocked) {
+    if (st.foundClues.includes(u.id)) continue;
+    st.foundClues.push(u.id);
+    st.log.push({ who: '시스템', kind: 'sys', text: `🔎 단서 획득: ${u.title}` });
+  }
+  pushReveals(st, fc, unlocked.map((u) => u.id));
+}
+
+function armHint(st: GameState): void {
+  st.log.push({ who: '시스템', kind: 'sys', text: '💢 상대가 크게 동요했다 — 이 선에서 더 캐물을 수 있을 것 같다.' });
+}
+
 function afterTurn(st: GameState): void {
   if (st.turnLeft <= 0 && st.phase === 'interrogate') {
     st.log.push({ who: '시스템', kind: 'sys', text: '마감입니다. 현재 단서로 지목해주세요.' });
@@ -151,12 +180,10 @@ async function handleAsk(npc: NpcPublic, fc: ServerCaseData, st: GameState, text
       });
       bubble.text = meta.reply;
       st.npc[npc.id].defense = Math.max(-3, Math.min(3, st.npc[npc.id].defense + meta.defenseDelta));
-      for (const u of meta.unlocked) {
-        if (!st.foundClues.includes(u.id)) {
-          st.foundClues.push(u.id);
-          st.log.push({ who: '시스템', kind: 'sys', text: `🔎 단서 획득: ${u.title}` });
-        }
-      }
+      const newArm = syncArmed(st, meta);
+      announceUnlocks(st, fc, meta.unlocked);
+      if (meta.unlocked.length > 0) (st.shaken ??= {})[npc.id] = true;
+      else if (newArm) armHint(st);
       afterTurn(st);
       return;
     } catch {
@@ -167,7 +194,13 @@ async function handleAsk(npc: NpcPublic, fc: ServerCaseData, st: GameState, text
       st.npc[npc.id].turns -= 1;
     }
   }
+  const armedBefore = new Set(Object.keys(st.armedChains ?? {}));
+  const cluesBefore = new Set(st.foundClues);
   ask(npc, fc, st, text);
+  const newIds = st.foundClues.filter((id) => !cluesBefore.has(id));
+  pushReveals(st, fc, newIds);
+  if (newIds.length > 0) (st.shaken ??= {})[npc.id] = true;
+  else if (Object.keys(st.armedChains ?? {}).some((k) => !armedBefore.has(k))) armHint(st);
   afterTurn(st);
 }
 
@@ -178,14 +211,11 @@ async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, 
     try {
       const meta = await remoteAsk(fc, st, npc, `이 단서를 보시죠: ${clue?.title ?? ''}`, clueId, () => {});
       st.log.push({ who: npc.name, kind: 'npc', text: meta.reply, npc: npc.id });
-      for (const u of meta.unlocked) {
-        if (!st.foundClues.includes(u.id)) {
-          st.foundClues.push(u.id);
-          st.log.push({ who: '시스템', kind: 'sys', text: `🔎 단서 획득: ${u.title}` });
-        }
-      }
-      if (meta.unlocked.length > 0) {
+      const newArm = syncArmed(st, meta);
+      announceUnlocks(st, fc, meta.unlocked);
+      if (meta.unlocked.length > 0 || newArm) {
         (st.shaken ??= {})[npc.id] = true;
+        if (meta.unlocked.length === 0) armHint(st); // 1단 적중 — 체인 발동 대기
       } else {
         st.npc[npc.id].defense = Math.min(3, st.npc[npc.id].defense + 1);
         st.presentWrong += 1;
@@ -197,7 +227,11 @@ async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, 
     }
   }
   const res = present(npc, fc, st, clueId);
-  if (res.unlocked.length > 0 || res.armed.length > 0) (st.shaken ??= {})[npc.id] = true;
+  pushReveals(st, fc, res.unlocked);
+  if (res.unlocked.length > 0 || res.armed.length > 0) {
+    (st.shaken ??= {})[npc.id] = true;
+    if (res.unlocked.length === 0) armHint(st);
+  }
   persist(); render();
 }
 
@@ -208,7 +242,7 @@ async function handleAccuse(fc: ServerCaseData, st: GameState, culpritId: string
       const r = await remoteAccuse(fc, st, culpritId, clueIds);
       st.phase = 'verdict';
       st.verdict = r.verdict;
-      st.log.push({ who: '판정', kind: 'sys', text: r.feedback });
+      if (r.verdict !== 'win') st.log.push({ who: '판정', kind: 'sys', text: r.feedback }); // 승리 문구는 verdict-box가 출력 (중복 방지)
       if (r.verdict === 'win') {
         st.phase = 'result';
         if (r.ending) remoteEnding = r.ending;
@@ -223,7 +257,7 @@ async function handleAccuse(fc: ServerCaseData, st: GameState, culpritId: string
     }
   }
   const r = accuse(fc, st, culpritId, clueIds);
-  st.log.push({ who: '판정', kind: 'sys', text: r.feedback });
+  if (r.verdict !== 'win') st.log.push({ who: '판정', kind: 'sys', text: r.feedback });
   persist(); render();
 }
 
@@ -478,4 +512,5 @@ function renderResult(c: PublicCaseData, fc: ServerCaseData, st: GameState, main
   main.append(share, btns);
 }
 
+initRemote();
 renderTitle();

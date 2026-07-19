@@ -161,6 +161,7 @@ export default {
           defenseDelta: Math.max(-2, Math.min(2, Number(replyObj.defense_delta) || 0)),
           refuse: !!replyObj.refuse,
           unlocked: unlocks,
+          armedChains: state.armedChains ?? {}, // findUnlocks가 arm을 상태에 기록 — 클라가 다음 요청에 되돌려줘야 2단 체인이 완료된다
           token: bumped.token,
           metrics,
         });

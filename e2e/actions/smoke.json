@@ -1,0 +1,6 @@
+[
+  { "shot": "interrogate_start" },
+  { "ask": "어제 밤 냉장고에 푸딩 넣어둔 거 누가 봤어요?" },
+  { "shot": "after_first_ask" },
+  { "expectText": "남은 심문" }
+]
