@@ -185,8 +185,7 @@ async function handleAsk(npc: NpcPublic, fc: ServerCaseData, st: GameState, text
       st.npc[npc.id].defense = Math.max(-3, Math.min(3, st.npc[npc.id].defense + meta.defenseDelta));
       const newArm = syncArmed(st, meta);
       announceUnlocks(st, fc, meta.unlocked);
-      if (meta.unlocked.length > 0) (st.shaken ??= {})[npc.id] = true;
-      else if (newArm) armHint(st);
+      if (meta.unlocked.length === 0 && newArm) armHint(st);
       afterTurn(st);
       return;
     } catch {
@@ -202,8 +201,7 @@ async function handleAsk(npc: NpcPublic, fc: ServerCaseData, st: GameState, text
   ask(npc, fc, st, text);
   const newIds = st.foundClues.filter((id) => !cluesBefore.has(id));
   pushReveals(st, fc, newIds);
-  if (newIds.length > 0) (st.shaken ??= {})[npc.id] = true;
-  else if (Object.keys(st.armedChains ?? {}).some((k) => !armedBefore.has(k))) armHint(st);
+  if (newIds.length === 0 && Object.keys(st.armedChains ?? {}).some((k) => !armedBefore.has(k))) armHint(st);
   afterTurn(st);
 }
 
