@@ -132,27 +132,25 @@ function evalTrigger(c: ServerCaseData, s: GameState, t: Trigger, ctx: EvalCtx):
   }
 }
 
-function processClue(c: ServerCaseData, s: GameState, clue: ServerClue, ctx: EvalCtx): void {
-  if (s.foundClues.includes(clue.id)) return;
-  const t = clue.trigger;
+function processAll(c: ServerCaseData, s: GameState, ctx: EvalCtx, announce = true): void {
+  for (const clue of c.clues) {
+    if (s.foundClues.includes(clue.id)) continue;
+    const t = clue.trigger;
 
-  // armed 체인의 2단 완료 시도 (ask 모드에서 then.topic 매칭)
-  if (s.armedChains[clue.id] && 'then' in t && t.then && ctx.mode === 'ask') {
-    const inner = evalTrigger(c, s, t.then, ctx);
-    if (inner === 'unlock') {
-      delete s.armedChains[clue.id];
-      grantClue(c, s, clue);
+    // armed 체인의 2단 완료 시도 (ask 모드에서 then.topic 매칭)
+    if (s.armedChains[clue.id] && 'then' in t && t.then && ctx.mode === 'ask') {
+      const inner = evalTrigger(c, s, t.then, ctx);
+      if (inner === 'unlock') {
+        delete s.armedChains[clue.id];
+        grantClue(c, s, clue, announce);
+      }
+      continue;
     }
-    return;
+
+    const r = evalTrigger(c, s, t, ctx);
+    if (r === 'unlock') grantClue(c, s, clue, announce);
+    else if (r === 'arm') s.armedChains[clue.id] = true;
   }
-
-  const r = evalTrigger(c, s, t, ctx);
-  if (r === 'unlock') grantClue(c, s, clue);
-  else if (r === 'arm') s.armedChains[clue.id] = true;
-}
-
-function processAll(c: ServerCaseData, s: GameState, ctx: EvalCtx): void {
-  for (const clue of c.clues) processClue(c, s, clue, ctx);
 }
 
 // ─── 액션 ───
@@ -182,12 +180,17 @@ export function present(npcCard: NpcPublic, c: ServerCaseData, s: GameState, clu
 
   const before = new Set(s.foundClues);
   const armedBefore = new Set(Object.keys(s.armedChains));
-  processAll(c, s, { mode: 'present', npcId: npcCard.id, topicsHit: [], presentedClueId: clueId });
+  processAll(c, s, { mode: 'present', npcId: npcCard.id, topicsHit: [], presentedClueId: clueId }, false);
   const unlocked = s.foundClues.filter((id) => !before.has(id));
   const armed = Object.keys(s.armedChains).filter((id) => !armedBefore.has(id));
 
+  // 반응 → 배너 순서 (스포일 먼저 뜨는 역순 방지)
   if (unlocked.length > 0 || armed.length > 0) {
     s.log.push({ who: npcCard.name, kind: 'npc', text: '(동요하며) …그건, 그게…', npc: npcCard.id });
+    for (const id of unlocked) {
+      const cl = c.clues.find((x) => x.id === id);
+      s.log.push({ who: '시스템', kind: 'sys', text: `🔎 단서 획득: ${cl?.title ?? id}` });
+    }
     return { unlocked, armed, defenseUp: false };
   }
   const ns = s.npc[npcCard.id];
@@ -234,12 +237,11 @@ export function accuse(c: ServerCaseData, s: GameState, culpritId: string, clueI
   }
   s.verdict = 'lose';
   const partial = c.partialClueSets.some((set) => set.every((k) => clueIds.includes(k)));
-  return {
-    verdict: 'lose',
-    feedback: partial
-      ? '단서 조합은 그럴듯한데, 뭔가 하나 어긋납니다. 그 사람도 숨기는 게 있긴 합니다만… 이 사건이랑 직결인지는 확신이 안 서네요.'
-      : '그 사람도 뭔가 숨기는 게 있긴 합니다만… 이 사건이랑 직결인지는 확신이 안 서네요.',
-  };
+  const hint = c.accuseHints?.[culpritId];
+  const base = partial
+    ? '단서 조합은 그럴듯한데, 뭔가 하나 어긋납니다. 그 사람도 숨기는 게 있긴 합니다만… 이 사건이랑 직결인지는 확신이 안 서네요.'
+    : '그 사람도 뭔가 숨기는 게 있긴 합니다만… 이 사건이랑 직결인지는 확신이 안 서네요.';
+  return { verdict: 'lose', feedback: hint ? `${base} ${hint}` : base };
 }
 
 export function applyRetry(s: GameState): boolean {

@@ -81,10 +81,9 @@ export function judge(c: ServerCaseData, s: GameState, culpritId: string, clueId
     };
   }
   const partial = c.partialClueSets.some((set) => set.every((k) => clueIds.includes(k)));
-  return {
-    verdict: 'lose',
-    feedback: partial
-      ? '단서 조합은 그럴듯한데, 뭔가 하나 어긋납니다. 그 사람도 숨기는 게 있긴 합니다만… 이 사건이랑 직결인지는 확신이 안 서네요.'
-      : '그 사람도 뭔가 숨기는 게 있긴 합니다만… 이 사건이랑 직결인지는 확신이 안 서네요.',
-  };
+  const hint = c.accuseHints?.[culpritId];
+  const base = partial
+    ? '단서 조합은 그럴듯한데, 뭔가 하나 어긋납니다. 그 사람도 숨기는 게 있긴 합니다만… 이 사건이랑 직결인지는 확신이 안 서네요.'
+    : '그 사람도 뭔가 숨기는 게 있긴 합니다만… 이 사건이랑 직결인지는 확신이 안 서네요.';
+  return { verdict: 'lose', feedback: hint ? `${base} ${hint}` : base };
 }

@@ -1,0 +1,10 @@
+[
+  { "accuseOpen": true },
+  { "shot": "accuse_copy_disabled" },
+  { "accusePick": "차민재" },
+  { "accuseSubmit": true },
+  { "waitMs": 1200 },
+  { "shot": "verdict_overlay" },
+  { "expectText": "빠져나갔습니다" },
+  { "expectText": "로그가 증명합니다" }
+]

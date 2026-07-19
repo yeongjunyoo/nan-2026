@@ -1,0 +1,12 @@
+[
+  { "shot": "start" },
+  { "accuseOpen": true },
+  { "shot": "accuse_copy_disabled" },
+  { "accusePick": "구본식" },
+  { "shot": "accuse_picked" },
+  { "accuseSubmit": true },
+  { "waitMs": 1200 },
+  { "shot": "verdict_overlay" },
+  { "expectText": "빠져나갔습니다" },
+  { "expectText": "18시에 나갔습니다" }
+]

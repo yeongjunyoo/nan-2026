@@ -49,6 +49,17 @@ function avatarImg(id: string, st: GameState, cls: string): HTMLImageElement | n
   return img;
 }
 
+/** 경계(방어) 단계 표시 — 오제시할수록 차오름 */
+function defenseSpan(st: GameState, id: string): HTMLElement | null {
+  const d = st.npc[id]?.defense ?? 0;
+  if (d <= 0) return null;
+  const span = el('span', 'defense-meter', `경계 ${'●'.repeat(d)}${'○'.repeat(Math.max(0, 3 - d))}`);
+  span.title = '엉뚱한 단서를 들이댈수록 상대가 마음을 닫습니다';
+  return span;
+}
+
+let logAll = false; // 로그 전체/현재 인물 토글 (심문 화면)
+
 function persist(): void {
   if (currentCase && s) {
     save.current = { caseId: currentCase.id, state: s };
@@ -148,7 +159,9 @@ function announceUnlocks(st: GameState, fc: ServerCaseData, unlocked: Array<{ id
   for (const u of unlocked) {
     if (st.foundClues.includes(u.id)) continue;
     st.foundClues.push(u.id);
-    st.log.push({ who: '시스템', kind: 'sys', text: `🔎 단서 획득: ${u.title}` });
+    // 배너 제목은 공개판 기준 (서버 제목이 결정적 수치를 선노출하는 사고 방지)
+    const pub = currentCase?.clues.find((x) => x.id === u.id);
+    st.log.push({ who: '시스템', kind: 'sys', text: `🔎 단서 획득: ${pub?.title ?? u.title}` });
   }
   pushReveals(st, fc, unlocked.map((u) => u.id));
 }
@@ -220,6 +233,7 @@ async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, 
       } else {
         st.npc[npc.id].defense = Math.min(3, st.npc[npc.id].defense + 1);
         st.presentWrong += 1;
+        st.log.push({ who: '시스템', kind: 'sys', text: '이 단서는 통하지 않는 것 같다. (상대의 경계 +1)' });
       }
       persist(); render();
       return;
@@ -232,6 +246,8 @@ async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, 
   if (res.unlocked.length > 0 || res.armed.length > 0) {
     (st.shaken ??= {})[npc.id] = true;
     if (res.unlocked.length === 0) armHint(st);
+  } else if (res.defenseUp) {
+    st.log.push({ who: '시스템', kind: 'sys', text: '이 단서는 통하지 않는 것 같다. (상대의 경계 +1)' });
   }
   persist(); render();
 }
@@ -273,7 +289,9 @@ function render(): void {
 
   const side = el('aside', 'side');
   side.append(el('h1', 'case-title', c.title));
-  side.append(el('p', 'turn-counter', `남은 심문: ${st.turnLeft}${st.turnLeft <= TURN_WARN ? ' ⚠️ 마감 임박' : ''}`));
+  if (st.phase !== 'briefing') {
+    side.append(el('p', 'turn-counter', `남은 심문: ${st.turnLeft}${st.turnLeft <= TURN_WARN ? ' ⚠️ 마감 임박' : ''}`));
+  }
 
   if (st.phase === 'briefing') {
     if (CASE_CARD[c.id]) {
@@ -298,6 +316,8 @@ function render(): void {
       const cText = el('span', 'suspect-text');
       cText.append(el('strong', '', `${npc.name} · ${npc.role}`));
       cText.append(el('span', 'one-liner', '의뢰인 (심문 가능)'));
+      const cd = defenseSpan(st, c.client);
+      if (cd) cText.append(cd);
       card.append(cText);
       card.onclick = () => { st.activeSuspect = c.client; persist(); render(); };
       side.append(card);
@@ -311,6 +331,8 @@ function render(): void {
       const textWrap = el('span', 'suspect-text');
       textWrap.append(el('strong', '', `${npc.name} · ${npc.role}`));
       textWrap.append(el('span', 'one-liner', npc.oneLiner));
+      const dm = defenseSpan(st, id);
+      if (dm) textWrap.append(dm);
       card.append(textWrap);
       card.onclick = () => { st.activeSuspect = id; persist(); render(); };
       side.append(card);
@@ -324,6 +346,8 @@ function render(): void {
       const wText = el('span', 'suspect-text');
       wText.append(el('strong', '', `${w.name} · ${w.role}`));
       wText.append(el('span', 'one-liner', `목격자? (심문 1회 = 2턴)`));
+      const wd = defenseSpan(st, c.witness);
+      if (wd) wText.append(wd);
       card.append(wText);
       card.onclick = () => { st.activeSuspect = c.witness!; persist(); render(); };
       side.append(card);
@@ -353,10 +377,17 @@ function render(): void {
   }
 
   const main = el('main', 'main');
+  if (st.phase === 'interrogate') {
+    const bar = el('div', 'log-bar');
+    const tgl = el('button', 'log-toggle', logAll ? '◀ 현재 인물과의 대화만' : '전체 대화 기록 보기');
+    tgl.onclick = () => { logAll = !logAll; render(); };
+    bar.append(tgl);
+    main.append(bar);
+  }
   const log = el('div', 'log');
   const npcFilter = st.activeSuspect;
   for (const e of st.log) {
-    if (e.npc && e.npc !== npcFilter && st.phase === 'interrogate') continue;
+    if (!logAll && e.npc && e.npc !== npcFilter && st.phase === 'interrogate') continue;
     const row = el('div', `msg ${e.kind}`);
     if (e.kind === 'npc' && e.npc) {
       const av = avatarImg(e.npc, st, 'msg-avatar');
@@ -391,16 +422,18 @@ function render(): void {
     main.append(form);
   } else if (st.phase === 'accuse') {
     main.append(el('h2', 'sec', c.question));
-    main.append(el('p', 'dim', '범인 1명 + 핵심 단서 2개를 골라 제출'));
+    main.append(el('p', 'dim', '범인 1명과 결정적 단서(최대 2개)를 골라 제출하세요. 어떤 조합이 정답인지는 사걸마다 다릅니다.'));
     let pickedNpc: string | null = null;
     const pickedClues = new Set<string>();
     const npcRow = el('div', 'accuse-row');
     const submit = el('button', 'btn danger', '제출');
+    submit.disabled = true; // 용의자 선택 전에는 비활성
     for (const id of c.suspects) {
       const npc = NPCS[id];
       const b = el('button', 'btn', npc.name);
       b.onclick = () => {
         pickedNpc = id;
+        submit.disabled = false;
         for (const x of npcRow.children) (x as HTMLElement).classList.remove('picked');
         b.classList.add('picked');
       };
@@ -428,17 +461,24 @@ function render(): void {
     const back = el('button', 'btn', '← 심문으로');
     back.onclick = () => { st.phase = 'interrogate'; render(); };
     main.append(submit, back);
-  } else if (st.phase === 'verdict') {
-    if (st.verdict === 'win') {
-      renderResult(c, fc, st, main);
-    } else {
+  }
+
+  root.append(side, main);
+  app.append(root);
+  log.scrollTop = log.scrollHeight;
+
+  // ─── 판정/결과는 전면 오버레이 (뷰포트 밖으로 밀리는 문제 방지) ───
+  if (st.phase === 'verdict' || st.phase === 'result') {
+    const ov = el('div', 'overlay');
+    const panel = el('div', 'overlay-panel');
+    if (st.phase === 'verdict' && st.verdict !== 'win') {
       // 지목 실패 — 버텨낸 용의자의 여유 미소 (코미디)
       if (st.accusedId && NPC_VARIANT[st.accusedId]) {
         const p = el('img', 'verdict-portrait') as HTMLImageElement;
         p.src = NPC_VARIANT[st.accusedId].smile;
         p.alt = NPCS[st.accusedId]?.name ?? st.accusedId;
-        main.append(p);
-        main.append(el('p', 'verdict-caption', `${NPCS[st.accusedId]?.name ?? ''} — 아쉽게도 빠져나갔습니다. 결정적 한 방이 부족했습니다.`));
+        panel.append(p);
+        panel.append(el('p', 'verdict-caption', `${NPCS[st.accusedId]?.name ?? ''} — 아쉽게도 빠져나갔습니다. 결정적 한 방이 부족했습니다.`));
       }
       const retryBtn = el('button', 'btn primary', `재도전 (턴 +3, 남은 기회 ${st.retriesLeft})`);
       retryBtn.disabled = st.retriesLeft <= 0;
@@ -450,15 +490,13 @@ function render(): void {
         markCleared(c.id);
         persist(); render();
       };
-      main.append(retryBtn, giveUp);
+      panel.append(retryBtn, giveUp);
+    } else {
+      renderResult(c, fc, st, panel);
     }
-  } else if (st.phase === 'result') {
-    renderResult(c, fc, st, main);
+    ov.append(panel);
+    app.append(ov);
   }
-
-  root.append(side, main);
-  app.append(root);
-  log.scrollTop = log.scrollHeight;
 }
 
 function renderResult(c: PublicCaseData, fc: ServerCaseData, st: GameState, main: HTMLElement): void {
@@ -471,6 +509,14 @@ function renderResult(c: PublicCaseData, fc: ServerCaseData, st: GameState, main
     p.alt = NPCS[st.accusedId]?.name ?? st.accusedId;
     main.append(p);
     main.append(el('p', 'verdict-caption', `${NPCS[st.accusedId]?.name ?? ''} — 더 이상 빠져나갈 곳이 없습니다.`));
+  }
+  // 미해결 마무리 — 지목했던 용의자의 여유 미소 (C등급에도 연출을)
+  if (st.verdict !== 'win' && st.accusedId && NPC_VARIANT[st.accusedId]) {
+    const p = el('img', 'verdict-portrait') as HTMLImageElement;
+    p.src = NPC_VARIANT[st.accusedId].smile;
+    p.alt = NPCS[st.accusedId]?.name ?? st.accusedId;
+    main.append(p);
+    main.append(el('p', 'verdict-caption', `${NPCS[st.accusedId]?.name ?? ''} — 끝내 밝혀내지 못했습니다.`));
   }
   if (st.verdict === 'win' && !st.endChoice) {
     main.append(el('div', 'verdict-box', ending.win));

@@ -67,6 +67,8 @@ export interface ServerCaseData extends Omit<PublicCaseData, 'clues'> {
   /** 각 그룹에서 1개 이상 필요 (OR 조합 — 사건2: {d3,(d4 OR d5)}) */
   keyClueChoices?: string[][];
   partialClueSets: string[][];
+  /** 오지목 시 지목 인물별 힌트 한 줄 (재도전 방향 유도) */
+  accuseHints?: Record<string, string>;
   ending: {
     win: string;
     lose: string;
