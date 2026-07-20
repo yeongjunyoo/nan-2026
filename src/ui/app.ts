@@ -60,6 +60,14 @@ function defenseSpan(st: GameState, id: string): HTMLElement | null {
 
 let logAll = false; // 로그 전체/현재 인물 토글 (심문 화면)
 
+// 목업 폴리백 발동 시 1회만 고지 — "AI인 줄 알았는데 목업" 은폐 방지
+let mockNoticeShown = false;
+function notifyMockOnce(st: GameState): void {
+  if (mockNoticeShown) return;
+  mockNoticeShown = true;
+  st.log.push({ who: '시스템', kind: 'sys', text: '현재 연결 상태로는 실시간 AI를 불러오지 못했습니다. 기본 답변으로 응답합니다. (다음 행동부터 자동 재시도)' });
+}
+
 /** 첫 턴 예시 질문 칩 (시간/현장/인물 3축 암묵 교육) */
 const EXAMPLE_CHIPS: Record<string, string[]> = {
   case1: ['어제 몇 시에 퇴근하셨어요?', '탕비실 쓰레기통, 누가 치웠는지 아세요?', '혹시 푸딩 좋아하세요?'],
@@ -243,6 +251,7 @@ async function handleAsk(npc: NpcPublic, fc: ServerCaseData, st: GameState, text
       st.turnLeft += cost; // 비용 복원
       st.turnsUsed -= cost;
       st.npc[npc.id].turns -= 1;
+      notifyMockOnce(st);
     }
   }
   const armedBefore = new Set(Object.keys(st.armedChains ?? {}));
@@ -277,6 +286,7 @@ async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, 
       return;
     } catch {
       st.log.pop();
+      notifyMockOnce(st);
     }
   }
   const cluesBefore = new Set(st.foundClues);

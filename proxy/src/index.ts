@@ -124,7 +124,8 @@ export default {
       const bumped = await bumpSession(body.token, env.STATE_SECRET);
       if (!bumped.ok) return json(env, { error: 'session-budget-exceeded', calls: bumped.calls }, 429);
 
-      return sseStream(env, async (send) => {
+      // 공통 LLM 파이프라인 (SSE 스트리밍과 sync JSON이 공유)
+      const run = async (send: (ev: string, data: unknown) => Promise<void> | void) => {
         const prompt = buildPrompt(npcPub, npcSrv, caseData, state, presentedTitle);
         let replyText = '';
         let replyObj: any = null;
@@ -140,7 +141,7 @@ export default {
             await send('llm-error', { error: ev.result.error, metrics: ev.result.metrics });
           }
         }
-        if (!replyObj) return; // llm-error already sent → 클라이언트 폴리백
+        if (!replyObj) return null; // llm-error already sent → 클라이언트 폴리백
 
         // 리트머스 (v1 = 사후 교체)
         const hit = litmus(replyText, caseData, state, npcSrv.forbidden);
@@ -155,7 +156,7 @@ export default {
         const unlocks = findUnlocks(caseData, state, { mode, npcId, topicsHit: declaredTopics, presentedClueId: presentedId })
           .map((cl) => ({ id: cl.id, title: cl.title, desc: cl.desc, reveal: cl.reveal }));
 
-        await send('meta', {
+        return {
           reply: replyText,
           emotion: replyObj.emotion ?? null,
           defenseDelta: Math.max(-2, Math.min(2, Number(replyObj.defense_delta) || 0)),
@@ -164,7 +165,19 @@ export default {
           armedChains: state.armedChains ?? {}, // findUnlocks가 arm을 상태에 기록 — 클라가 다음 요청에 되돌려줘야 2단 체인이 완료된다
           token: bumped.token,
           metrics,
-        });
+        };
+      };
+
+      // sync 모드 — SSE/fetch 스트리밍 미지원 브라우저(일부 인앱 웹뷰) 대응
+      if (url.searchParams.get('sync') === '1') {
+        const meta = await run(() => {});
+        if (!meta) return json(env, { error: 'llm-error' }, 502);
+        return json(env, meta);
+      }
+
+      return sseStream(env, async (send) => {
+        const meta = await run(send);
+        if (meta) await send('meta', meta);
       });
     }
 

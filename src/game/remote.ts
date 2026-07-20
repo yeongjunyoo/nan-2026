@@ -62,6 +62,22 @@ export async function remoteAsk(
   presentClueId: string | null,
   onDelta: (full: string) => void,
 ): Promise<MetaPayload> {
+  try {
+    return await remoteAskStream(c, s, npc, text, presentClueId, onDelta);
+  } catch {
+    // fetch/SSE 스트리밍 미지원 환경(일부 인앱 웹뷰) — sync JSON으로 1회 재시도
+    return await remoteAskSync(c, s, npc, text, presentClueId, onDelta);
+  }
+}
+
+async function remoteAskStream(
+  c: ServerCaseData,
+  s: GameState,
+  npc: NpcPublic,
+  text: string,
+  presentClueId: string | null,
+  onDelta: (full: string) => void,
+): Promise<MetaPayload> {
   const token = await ensureSession();
   const path = presentClueId ? '/present' : '/ask';
   const res = await fetch(`${REMOTE_URL}${path}`, {
@@ -74,7 +90,9 @@ export async function remoteAsk(
       ...(presentClueId ? { clueId: presentClueId } : { text }),
     }),
   });
-  if (!res.ok || !res.body) throw { kind: 'network', detail: `http ${res.status}` } as RemoteError;
+  if (!res.ok || !res.body || typeof res.body.getReader !== 'function') {
+    throw { kind: 'network', detail: `http ${res.status}` } as RemoteError;
+  }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -111,6 +129,36 @@ export async function remoteAsk(
     sessionToken = meta.token;
     localStorage.setItem('nan503.session', sessionToken);
   }
+  return meta;
+}
+
+async function remoteAskSync(
+  c: ServerCaseData,
+  s: GameState,
+  npc: NpcPublic,
+  text: string,
+  presentClueId: string | null,
+  onDelta: (full: string) => void,
+): Promise<MetaPayload> {
+  const token = await ensureSession();
+  const path = presentClueId ? '/present' : '/ask';
+  const res = await fetch(`${REMOTE_URL}${path}?sync=1`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      token,
+      state: s,
+      npcId: npc.id,
+      ...(presentClueId ? { clueId: presentClueId } : { text }),
+    }),
+  });
+  if (!res.ok) throw { kind: 'network', detail: `http ${res.status}` } as RemoteError;
+  const meta = (await res.json()) as MetaPayload;
+  if (meta.token) {
+    sessionToken = meta.token;
+    localStorage.setItem('nan503.session', sessionToken);
+  }
+  onDelta(meta.reply); // 스트리밍 불가 환경이니 완성문 1회 전달
   return meta;
 }
 
