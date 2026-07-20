@@ -1,0 +1,22 @@
+[
+  { "suspect": "차민재" },
+  { "ask": "어제 몇 시에 퇴근하셨어요?" },
+  { "ask": "쓰레기통에 뭐 버렸어요? 빈 용기 봤어요?" },
+  { "suspect": "구본식" },
+  { "present": "쓰레기통" },
+  { "waitMs": 300 },
+  { "shot": "takeover_hit" },
+  { "ask": "부장실 휴지통 비우셨어요? 캐러멜 소스가 나왔다던데요" },
+  { "present": "캐러멜" },
+  { "accuseOpen": true },
+  { "accusePick": "구본식" },
+  { "accuseClues": ["캐러멜", "혈당"] },
+  { "shot": "doc_full" },
+  { "accuseSubmit": true },
+  { "waitMs": 350 },
+  { "shot": "takeover_verdict" },
+  { "waitMs": 900 },
+  { "shot": "newspaper_win" },
+  { "expectText": "두잇일보" },
+  { "expectText": "고과" }
+]

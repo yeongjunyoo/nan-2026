@@ -1,0 +1,19 @@
+[
+  { "ask": "어제 몇 시에 퇴근하셨어요?" },
+  { "suspect": "구본식" },
+  { "shot": "clue_card" },
+  { "waitMs": 400 },
+  { "shot": "pre_file" },
+  { "present": "차민재 21:30" },
+  { "waitMs": 350 },
+  { "shot": "takeover_catch" },
+  { "shot": "after_present" },
+  { "accuseOpen": true },
+  { "shot": "doc_accuse" },
+  { "accusePick": "구본식" },
+  { "accuseClues": ["차민재 21:30"] },
+  { "shot": "doc_picked" },
+  { "accuseSubmit": true },
+  { "waitMs": 400 },
+  { "shot": "verdict_overlay" }
+]

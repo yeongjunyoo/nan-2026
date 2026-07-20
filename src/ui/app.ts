@@ -34,6 +34,20 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
   return e;
 }
 
+/** 단말기 창 프레임 (타이틀바 + 본문) — 인트라넷 503 골격 */
+function windowFrame(title: string, body: HTMLElement): HTMLElement {
+  const win = el('div', 'win');
+  const bar = el('div', 'win-bar');
+  bar.append(el('span', 'win-title', title));
+  const btns = el('span', 'win-btns');
+  btns.append(el('i'), el('i'), el('i'));
+  bar.append(btns);
+  const wrap = el('div', 'win-body');
+  wrap.append(body);
+  win.append(bar, wrap);
+  return win;
+}
+
 /** 동요한 NPC는 붕괴 표정으로 전환, 아니면 베이스 */
 function avatarFor(id: string, st: GameState): string {
   if (st.shaken?.[id] && NPC_VARIANT[id]) return NPC_VARIANT[id].breakdown;
@@ -59,6 +73,7 @@ function defenseSpan(st: GameState, id: string): HTMLElement | null {
 }
 
 let logAll = false; // 로그 전체/현재 인물 토글 (심문 화면)
+let openClueId: string | null = null; // 증거 파일 창으로 열어본 단서
 
 // 목업 폴리백 발동 시 1회만 고지 — "AI인 줄 알았는데 목업" 은폐 방지
 let mockNoticeShown = false;
@@ -128,13 +143,16 @@ function renderTitle(): void {
     cont.onclick = () => { void resumeCase(); };
     box.append(cont);
   }
-  app.append(box);
+  const win = windowFrame('503호 수사 단말 — 시작', box);
+  win.classList.add('title-win');
+  app.append(win);
 }
 
 async function startCase(c: PublicCaseData): Promise<void> {
   currentCase = c;
   fullCase = await loadFullCase(c.id);
   if (!fullCase) return;
+  openClueId = null;
   s = createGame(fullCase);
   s.phase = 'briefing';
   persist();
@@ -214,6 +232,18 @@ function signatureOnHit(st: GameState): void {
   if (lastMe) lastMe.text = `${lastMe.text} — 그건 어떻게 설명하시죠?`;
 }
 
+/** 폭로 전면 테이크오버 (플래시+집중선, reduced-motion 건드) */
+function takeover(kind: 'hit' | 'verdict'): void {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const ov = el('div', `takeover ${kind}`);
+  document.body.append(ov);
+  if (kind === 'verdict') {
+    document.body.classList.add('shake');
+    setTimeout(() => document.body.classList.remove('shake'), 450);
+  }
+  setTimeout(() => ov.remove(), 700);
+}
+
 function afterTurn(st: GameState): void {
   if (st.turnLeft <= 0 && st.phase === 'interrogate') {
     st.log.push({ who: '시스템', kind: 'sys', text: '마감입니다. 현재 단서로 지목해주세요.' });
@@ -275,7 +305,7 @@ async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, 
       announceUnlocks(st, fc, meta.unlocked);
       if (meta.unlocked.length > 0 || newArm) {
         (st.shaken ??= {})[npc.id] = true;
-        if (meta.unlocked.length > 0) signatureOnHit(st);
+        if (meta.unlocked.length > 0) { signatureOnHit(st); takeover('hit'); }
         else armHint(st); // 1단 적중 — 체인 발동 대기
       } else {
         st.npc[npc.id].defense = Math.min(3, st.npc[npc.id].defense + 1);
@@ -295,7 +325,7 @@ async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, 
   tutorialIfFirst(st, cluesBefore.size);
   if (res.unlocked.length > 0 || res.armed.length > 0) {
     (st.shaken ??= {})[npc.id] = true;
-    if (res.unlocked.length > 0) signatureOnHit(st);
+    if (res.unlocked.length > 0) { signatureOnHit(st); takeover('hit'); }
     else armHint(st);
   } else if (res.defenseUp) {
     st.log.push({ who: '시스템', kind: 'sys', text: '통하지 않았습니다. 상대의 경계가 올랐습니다. (경계 +1)' });
@@ -313,6 +343,7 @@ async function handleAccuse(fc: ServerCaseData, st: GameState, culpritId: string
       if (r.verdict !== 'win') st.log.push({ who: '판정', kind: 'sys', text: r.feedback }); // 승리 문구는 verdict-box가 출력 (중복 방지)
       if (r.verdict === 'win') {
         st.phase = 'result';
+        takeover('verdict');
         if (r.ending) remoteEnding = r.ending;
         for (const id of r.postUnlock ?? []) {
           if (!st.foundClues.includes(id)) st.foundClues.push(id);
@@ -326,6 +357,7 @@ async function handleAccuse(fc: ServerCaseData, st: GameState, culpritId: string
   }
   const r = accuse(fc, st, culpritId, clueIds);
   if (r.verdict !== 'win') st.log.push({ who: '판정', kind: 'sys', text: r.feedback });
+  else takeover('verdict');
   persist(); render();
 }
 
@@ -418,12 +450,14 @@ function render(): void {
     for (const cid of st.foundClues) {
       const clue = c.clues.find((x) => x.id === cid);
       if (!clue) continue;
-      const ce = el('div', 'clue');
+      const ce = el('div', 'clue clickable');
       ce.append(el('strong', '', clue.title));
       ce.append(el('p', '', clue.desc));
+      ce.onclick = () => { openClueId = cid; render(); };
       if (st.phase === 'interrogate') {
         const pb = el('button', 'btn mini', '제시');
-        pb.onclick = () => {
+        pb.onclick = (ev) => {
+          ev.stopPropagation();
           const npc = NPCS[st.activeSuspect];
           void handlePresent(npc, fc, st, clue.id);
         };
@@ -497,16 +531,21 @@ function render(): void {
     };
     main.append(form);
   } else if (st.phase === 'accuse') {
-    main.append(el('h2', 'sec', c.question));
-    main.append(el('p', 'dim', '범인 1명과 결정적 단서(최대 2개)를 골라 제출하세요.'));
+    // 품의서 지목 — "구속영장"이 아니라 "수사 결과 보고서 상신" (직장 밈)
+    const doc = el('div', 'doc');
+    const caseNo = CASES.indexOf(c) + 1;
+    doc.append(el('p', 'doc-no', `품의서 제503-${caseNo}호`));
+    doc.append(el('h2', 'doc-title', '수사 결과 보고서'));
+    doc.append(el('p', 'doc-case', `사건: 「${c.title}」 — ${c.question}`));
+    doc.append(el('p', 'doc-sec', '범 인 (1명)'));
     let pickedNpc: string | null = null;
     const pickedClues = new Set<string>();
     const npcRow = el('div', 'accuse-row');
-    const submit = el('button', 'btn danger', '제출');
+    const submit = el('button', 'btn stamp', '상 신');
     submit.disabled = true; // 용의자 선택 전에는 비활성
     for (const id of c.suspects) {
       const npc = NPCS[id];
-      const b = el('button', 'btn', npc.name);
+      const b = el('button', 'btn doc-pick', npc.name);
       b.onclick = () => {
         pickedNpc = id;
         submit.disabled = false;
@@ -515,12 +554,13 @@ function render(): void {
       };
       npcRow.append(b);
     }
-    main.append(npcRow);
+    doc.append(npcRow);
+    doc.append(el('p', 'doc-sec', '근거 단서 (최대 2개)'));
     const clueWrap = el('div', 'accuse-clues');
     for (const cid of st.foundClues) {
       const clue = c.clues.find((x) => x.id === cid);
       if (!clue) continue;
-      const b = el('button', 'btn mini', clue.title);
+      const b = el('button', 'btn mini doc-clue', clue.title);
       b.onclick = () => {
         if (pickedClues.has(cid)) pickedClues.delete(cid);
         else if (pickedClues.size < 2) pickedClues.add(cid);
@@ -528,18 +568,27 @@ function render(): void {
       };
       clueWrap.append(b);
     }
-    main.append(clueWrap);
-    if (st.foundClues.length < 2) main.append(el('p', 'dim', '단서가 부족합니다. 그래도 지목할 수는 있습니다.'));
+    doc.append(clueWrap);
+    if (st.foundClues.length < 2) doc.append(el('p', 'doc-warn', '단서가 부족합니다. 그래도 상신할 수는 있습니다.'));
+    const docBtns = el('div', 'doc-btns');
     submit.onclick = () => {
       if (!pickedNpc) return;
       void handleAccuse(fc, st, pickedNpc, [...pickedClues]);
     };
     const back = el('button', 'btn', '← 심문으로');
     back.onclick = () => { st.phase = 'interrogate'; render(); };
-    main.append(submit, back);
+    docBtns.append(submit, back);
+    doc.append(docBtns);
+    main.append(doc);
   }
 
-  root.append(side, main);
+  root.append(
+    windowFrame('사건 파일 — 503호', side),
+    windowFrame(
+      st.phase === 'interrogate' ? `사내 메신저 — ${NPCS[st.activeSuspect].name}` : '사내 메신저 — 503호 수사 채널',
+      main,
+    ),
+  );
   app.append(root);
   log.scrollTop = log.scrollHeight;
 
@@ -573,47 +622,86 @@ function render(): void {
     ov.append(panel);
     app.append(ov);
   }
+
+  // ─── 증거 파일 창 (단서 확대 보기) ───
+  if (openClueId) {
+    const clue = c.clues.find((x) => x.id === openClueId);
+    if (clue) {
+      const body = el('div', 'file-body');
+      body.append(el('p', 'file-desc', clue.desc));
+      body.append(el('p', 'file-holder', `출처: ${NPCS[clue.holder]?.name ?? '기록'}`));
+      const fbtns = el('div', 'file-btns');
+      if (st.phase === 'interrogate') {
+        const pb = el('button', 'btn primary mini', '이 단서 제시');
+        pb.onclick = () => {
+          openClueId = null;
+          const npc = NPCS[st.activeSuspect];
+          void handlePresent(npc, fc, st, clue.id);
+        };
+        fbtns.append(pb);
+      }
+      const close = el('button', 'btn mini', '닫기');
+      close.onclick = () => { openClueId = null; render(); };
+      fbtns.append(close);
+      body.append(fbtns);
+      const fw = windowFrame(`증거 파일 — ${clue.title}`, body);
+      fw.classList.add('file-win');
+      app.append(fw);
+    }
+  }
 }
 
 function renderResult(c: PublicCaseData, fc: ServerCaseData, st: GameState, main: HTMLElement): void {
   const ending = remoteEnding ?? fc.ending;
+  // 사내 신문 「두잇일보」 형식의 결과 지면
+  const paper = el('div', 'paper');
+  paper.append(el('p', 'paper-masthead', '두잇일보'));
+  paper.append(el('p', 'paper-date', '사보 제503호 · 503호 창구 특보'));
+  paper.append(el('h2', 'paper-headline', st.verdict === 'win' ? `「${c.title}」 해결` : `「${c.title}」 미해결 종결`));
+
   // 지목 성공 — 붕괴 표정 전면 포트레이트 (폭로 연출)
   if (st.verdict === 'win' && st.accusedId && NPC_VARIANT[st.accusedId]) {
     (st.shaken ??= {})[st.accusedId] = true;
     const p = el('img', 'verdict-portrait breakdown') as HTMLImageElement;
     p.src = NPC_VARIANT[st.accusedId].breakdown;
     p.alt = NPCS[st.accusedId]?.name ?? st.accusedId;
-    main.append(p);
-    main.append(el('p', 'verdict-caption', `${NPCS[st.accusedId]?.name ?? ''} — 더 이상 빠져나갈 곳이 없습니다.`));
+    paper.append(p);
+    paper.append(el('p', 'verdict-caption', `${NPCS[st.accusedId]?.name ?? ''} — 더 이상 빠져나갈 곳이 없습니다.`));
   }
   // 미해결 마무리 — 지목했던 용의자의 여유 미소 (C등급에도 연출을)
   if (st.verdict !== 'win' && st.accusedId && NPC_VARIANT[st.accusedId]) {
     const p = el('img', 'verdict-portrait') as HTMLImageElement;
     p.src = NPC_VARIANT[st.accusedId].smile;
     p.alt = NPCS[st.accusedId]?.name ?? st.accusedId;
-    main.append(p);
-    main.append(el('p', 'verdict-caption', `${NPCS[st.accusedId]?.name ?? ''} — 끝내 밝혀내지 못했습니다.`));
+    paper.append(p);
+    paper.append(el('p', 'verdict-caption', `${NPCS[st.accusedId]?.name ?? ''} — 끝내 밝혀내지 못했습니다.`));
   }
+  if (st.verdict !== 'win') paper.append(el('div', 'paper-article', ending.lose));
+
+  const g = grade(fc, st);
+  const stamp = el('div', `grade-stamp grade-${g}`, `고과 ${g}`);
+  paper.append(stamp);
+
   if (st.verdict === 'win' && !st.endChoice) {
-    main.append(el('div', 'verdict-box', ending.win));
-    if (ending.twist) main.append(el('div', 'twist-box', ending.twist));
+    paper.append(el('div', 'paper-article', ending.win));
+    if (ending.twist) paper.append(el('div', 'twist-box', ending.twist));
     if (ending.choice) {
       const a = el('button', 'btn primary', ending.choice.a.label);
       const b = el('button', 'btn', ending.choice.b.label);
       a.onclick = () => { st.endChoice = 'a'; markCleared(c.id); persist(); render(); };
       b.onclick = () => { st.endChoice = 'b'; markCleared(c.id); persist(); render(); };
-      main.append(a, b);
+      main.append(paper, a, b);
       return;
     }
     markCleared(c.id);
   }
   if (st.endChoice && ending.choice) {
-    main.append(el('div', 'twist-box', st.endChoice === 'a' ? ending.choice.a.text : ending.choice.b.text));
+    paper.append(el('div', 'twist-box', st.endChoice === 'a' ? ending.choice.a.text : ending.choice.b.text));
   }
-  const g = grade(fc, st);
-  main.append(el('div', `grade grade-${g}`, `등급 ${g}`));
   const missing = c.clues.filter((cl) => !st.foundClues.includes(cl.id)).length;
-  if (missing > 0) main.append(el('p', 'dim', `숨겨진 단서 ${missing}개가 남아 있습니다.`));
+  if (missing > 0) paper.append(el('p', 'dim', `숨겨진 단서 ${missing}개가 남아 있습니다.`));
+  main.append(paper);
+
   const share = el('button', 'btn', '결과 카드 복사');
   share.onclick = () => {
     const text = `사건파일 503호 「${c.title}」 — 등급 ${g} (질문 ${st.turnsUsed}회, 단서 ${st.foundClues.length}/${c.clues.length})`;
@@ -654,6 +742,47 @@ const CRT_LEVELS: Array<[string, number]> = [['기본', 0.5], ['약함', 0.2], [
   };
   apply();
   document.body.append(btn);
+})();
+
+// 부팅 시퀀스 (세션 1회, 3초 이내, 클릭/키 스킵, reduced-motion 건드) — "회사가 싸구려로 도입한 수사 단말기" 설치
+(function boot(): void {
+  if (sessionStorage.getItem('nan503.booted')) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  sessionStorage.setItem('nan503.booted', '1');
+  const ov = el('div', 'boot');
+  const pre = el('pre', 'boot-text');
+  const hint = el('p', 'boot-hint', '아무 키나 누르세요 — 건너띠기');
+  ov.append(pre, hint);
+  document.body.append(ov);
+  const lines = [
+    'DOIT-BIOS v2.03 — (주)두잇상사 사내 표준 단말',
+    'INTRANET-503 수사 단말 클라이언트',
+    '메모리 체크 ......... 64MB OK',
+    '사내 망 접속 ......... OK',
+    'AI 심문 엔진 연결 ......... OK',
+    '',
+    '503호 창구에 오신 걸 환영합니다_',
+  ];
+  let i = 0;
+  let timer = 0;
+  const done = (): void => {
+    ov.classList.add('boot-out');
+    setTimeout(() => ov.remove(), 320);
+    document.removeEventListener('keydown', skip);
+  };
+  const skip = (): void => { clearTimeout(timer); done(); };
+  const tick = (): void => {
+    if (i < lines.length) {
+      pre.textContent += `${lines[i]}\n`;
+      i += 1;
+      timer = window.setTimeout(tick, 240);
+    } else {
+      timer = window.setTimeout(done, 450);
+    }
+  };
+  timer = window.setTimeout(tick, 220);
+  ov.addEventListener('click', skip);
+  document.addEventListener('keydown', skip);
 })();
 
 renderTitle();

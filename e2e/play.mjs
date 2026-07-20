@@ -108,7 +108,7 @@ try {
       continue;
     }
     if (a.accuseSubmit) {
-      await page.locator('main button.btn.danger', { hasText: '제출' }).click();
+      await page.locator('main button.btn.stamp, main button.btn.danger').first().click();
       await page.waitForTimeout(1500);
       await waitStable(page);
       rec('accuse: 제출 완료');
@@ -145,7 +145,7 @@ try {
   result.final = {
     turnCounter: await page.locator('.turn-counter').innerText().catch(() => null),
     clueCounter: await page.locator('aside h2.sec', { hasText: '단서' }).innerText().catch(() => null),
-    grade: await page.locator('.grade').innerText().catch(() => null),
+    grade: await page.locator('.grade-stamp, .grade').first().innerText().catch(() => null),
     hasVerdictPortrait: (await page.locator('img.verdict-portrait').count()) > 0,
     avatarCount: await page.locator('img.msg-avatar').count(),
     bodyTail: body.slice(-600),
