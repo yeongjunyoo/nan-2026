@@ -15,11 +15,20 @@ const NPCS = NPC_PUBLIC;
 
 // ─── 저장 (localStorage 미러) ───
 const LS_KEY = 'nan503.v1';
+// 스토리지 차단 환경(일부 인앱 웹뷰/프라이버시 모드)에서도 앱이 죽지 않게 전부 try 가드 (M5)
+const storage = {
+  get(area: 'local' | 'session', key: string): string | null {
+    try { return (area === 'local' ? localStorage : sessionStorage).getItem(key); } catch { return null; }
+  },
+  set(area: 'local' | 'session', key: string, val: string): void {
+    try { (area === 'local' ? localStorage : sessionStorage).setItem(key, val); } catch { /* 차단 환경 — 무시 */ }
+  },
+};
 interface SaveData { cleared?: string[]; current?: { caseId: string; state: GameState } }
 function loadSave(): SaveData {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) ?? '{}') as SaveData; } catch { return {}; }
+  try { return JSON.parse(storage.get('local', LS_KEY) ?? '{}') as SaveData; } catch { return {}; }
 }
-function storeSave(d: SaveData): void { localStorage.setItem(LS_KEY, JSON.stringify(d)); }
+function storeSave(d: SaveData): void { storage.set('local', LS_KEY, JSON.stringify(d)); }
 
 let save = loadSave();
 let currentCase: PublicCaseData | null = null;
@@ -35,8 +44,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 }
 
 /** 단말기 창 프레임 (타이틀바 + 본문) — 인트라넷 503 골격. onClose 주면 끝 버튼이 진짜 닫기로 동작 */
-function windowFrame(title: string, body: HTMLElement, onClose?: () => void): HTMLElement {
-  const win = el('div', 'win');
+function windowFrame(title: string, body: HTMLElement, onClose?: () => void, cls?: string): HTMLElement {
+  const win = el('div', cls ? `win ${cls}` : 'win');
   const bar = el('div', 'win-bar');
   bar.append(el('span', 'win-title', title));
   const btns = el('span', 'win-btns');
@@ -597,7 +606,7 @@ function render(): void {
       b.onclick = () => {
         if (pickedClues.has(cid)) pickedClues.delete(cid);
         else if (pickedClues.size < 2) pickedClues.add(cid);
-        b.classList.toggle('picked');
+        b.classList.toggle('picked', pickedClues.has(cid)); // 3번째 클릭 데싱크 방지 (M1)
       };
       clueWrap.append(b);
     }
@@ -616,7 +625,7 @@ function render(): void {
   }
 
   // 브리핑 단계는 빈 메신저 창을 띄우지 않는다 (특히 모바일에서 노이즈)
-  const sideWin = windowFrame('사건 파일 — 503호', side);
+  const sideWin = windowFrame('사건 파일 — 503호', side, undefined, 'side-win');
   if (st.phase === 'briefing') {
     root.append(sideWin);
   } else {
@@ -625,6 +634,8 @@ function render(): void {
       windowFrame(
         st.phase === 'interrogate' ? `사내 메신저 — ${NPCS[st.activeSuspect].name}` : '사내 메신저 — 503호 수사 채널',
         main,
+        undefined,
+        'main-win',
       ),
     );
   }
@@ -773,7 +784,7 @@ initRemote();
 // CRT 스캔라인 강도 토글 (우하단 고정, 심사 조건 방어)
 const CRT_LEVELS: Array<[string, number]> = [['기본', 0.5], ['약함', 0.2], ['끔', 0]];
 (function crtToggle(): void {
-  let idx = Math.min(CRT_LEVELS.length - 1, Math.max(0, Number(localStorage.getItem('nan503.crt') ?? 0) || 0));
+  let idx = Math.min(CRT_LEVELS.length - 1, Math.max(0, Number(storage.get('local', 'nan503.crt') ?? '0') || 0));
   const btn = document.createElement('button');
   btn.className = 'crt-toggle';
   const apply = (): void => {
@@ -782,7 +793,7 @@ const CRT_LEVELS: Array<[string, number]> = [['기본', 0.5], ['약함', 0.2], [
   };
   btn.onclick = () => {
     idx = (idx + 1) % CRT_LEVELS.length;
-    localStorage.setItem('nan503.crt', String(idx));
+    storage.set('local', 'nan503.crt', String(idx));
     apply();
   };
   apply();
@@ -791,12 +802,12 @@ const CRT_LEVELS: Array<[string, number]> = [['기본', 0.5], ['약함', 0.2], [
 
 // 부팅 시퀀스 (세션 1회, 3초 이내, 클릭/키 스킵, reduced-motion 건드) — "회사가 싸구려로 도입한 수사 단말기" 설치
 (function boot(): void {
-  if (sessionStorage.getItem('nan503.booted')) return;
+  if (storage.get('session', 'nan503.booted')) return;
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  sessionStorage.setItem('nan503.booted', '1');
+  storage.set('session', 'nan503.booted', '1');
   const ov = el('div', 'boot');
   const pre = el('pre', 'boot-text');
-  const hint = el('p', 'boot-hint', '화면을 터치하거나 아무 키나 누르세요 — 건너뚰기');
+  const hint = el('p', 'boot-hint', '화면을 터치하거나 아무 키나 누르세요 — 건너뛰기');
   ov.append(pre, hint);
   document.body.append(ov);
   const lines = [
@@ -820,7 +831,7 @@ const CRT_LEVELS: Array<[string, number]> = [['기본', 0.5], ['약함', 0.2], [
     if (i < lines.length) {
       pre.textContent += `${lines[i]}\n`;
       i += 1;
-      timer = window.setTimeout(tick, 240);
+      timer = window.setTimeout(tick, 180);
     } else {
       timer = window.setTimeout(done, 450);
     }

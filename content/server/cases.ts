@@ -196,12 +196,12 @@ export const case3: ServerCaseData = {
     },
     {
       id: 'e4', title: '구본식의 실토 "나는 시켰을 뿐이야"', holder: 'gu',
-      desc: '구본식이 마루팡에게 지시했다: "차민재 PC로 급한 거 보낸놔."',
+      desc: '구본식이 마루팡에게 지시했다: "차민재 PC로 급한 거 보내놔."',
       trigger: {
         type: 'present', npc: 'gu', clue: 'e2',
         then: { type: 'topic', npc: 'gu', topics: ['시켰', '지시', '보낸'] },
       },
-      reveal: '구본식: "아니, 나는 시켰을 뿐이야. 마루팡 과장한테, 차민재 PC로 급한 거 보낸놓으라고."',
+      reveal: '구본식: "아니, 나는 시켰을 뿐이야. 마루팡 과장한테, 차민재 PC로 급한 거 보내 놓으라고."',
     },
     {
       id: 'e5', title: '이상록의 목격 — "뭘 뽑아가시던데요"', holder: 'lee',
@@ -228,7 +228,7 @@ export const case3: ServerCaseData = {
     twist: undefined,
     choice: undefined,
   },
-  litmusKeywords: ['지글러', '17:52', '보낸놔', '다음 주 금요일'],
+  litmusKeywords: ['지글러', '17:52', '보내놔', '다음 주 금요일'],
 };
 
 export const SERVER_CASES: ServerCaseData[] = [case1, case2, case3];

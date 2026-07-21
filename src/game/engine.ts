@@ -21,7 +21,7 @@ export interface GameState {
   phase: Phase;
   activeSuspect: string;
   turnLeft: number;
-  turnsUsed: number; // 등급 산정용 (재도전 본너스와 무관하게 누적)
+  turnsUsed: number; // 등급 산정용 (재도전 보너스와 무관하게 누적)
   presentWrong: number; // 오제시 횟수 (제시 정확도)
   npc: Record<string, NpcState>;
   foundClues: string[];

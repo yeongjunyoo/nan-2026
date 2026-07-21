@@ -1,139 +1,162 @@
-# 스테이지2 코드 리뷰 — 「사건파일 503호」 최근 3커밋 (적대적 리뷰)
+# 스테이지2 코드 리뷰 (적대적) — 「사건파일 503호」
 
-- 범위: `git diff eeea718..HEAD`(OS-as-UI) + `git diff 784e377..eeea718`(카피/폰트)
-- 커밋: 13f62dd (OS-as-UI) · be219cf (WebP/폰트/sync 모드) · eeea718 (카피/폰트)
-- 리뷰 일자: 2026-07-21 · 읽기 전용, 코드 수정 없음
+- 범위: `git diff eeea718..HEAD` (13f62dd OS-as-UI + be219cf WebP/폰트/sync 폴리백). 한국어 전수 검사는 src/, content/, proxy/ 전체.
+- 리뷰 일자: 2026-07-21 · 읽기 전용, 코드 수정 없음.
+- 참고: 이전 실행 초안은 환각 문자열('걷기띄기', '병행놓으라고' — 실제 소스에 없음)로 오염되어 폐기. 본 문서는 전 항목 현재 소스 실측으로 재검증.
 
 ---
 
 ## 치명
 
-### C1. `remoteEnding` 크로스케이스 오염 — 이전 사건 엔딩이 다음 사건 신문 지면에 실림
-- **위치**: `src/ui/app.ts:11`(선언) → `:347`(set, 원격 승리 시에만) → `:655`(read, `remoteEnding ?? fc.ending`). `startCase()`(`:151-160`)에서 `openClueId`는 초기화하지만 `remoteEnding`은 초기화하지 않음.
-- **재현**: 원격 모드로 사건1 승리(→ `remoteEnding = case1.ending`) → [다음 사건] → 사건2 진행 → ① 턴 소진 후 지목 실패 → [포기하고 마무리], 또는 ② 프록시 다운 상태에서 목업 승리 → 결과 지면에 **사건1의 lose/win/twist/choice 문구**가 출력됨. ①의 경우 giveUp 로그에는 사건2 `ending.lose`가 찍히고(`:613`) 지면에는 사건1 문구 — 같은 화면에서 모순. 프록시 `judge()`는 정적 `c.ending`을 그대로 반환하므로(`proxy/src/clue.ts:70-74`) "원격 엔딩이 더 정확"한 경우가 없어 캐시 자체가 무의미.
-- **수정 제안**: `startCase()`/`resumeCase()`에서 `remoteEnding = null`. 근본적으로는 모듈 변수를 없애고 `GameState`에 귀속시켜 저장/복원과 생명주기를 일치시킬 것.
+없음. 기본 플레이 경로에서 무조건 재현되는 크래시/진행 불가는 확인되지 않았다.
 
 ---
 
 ## 상
 
-### H1. 파일 창(z15)이 판정 오버레이(z10) 위에 뜬다 — `openClueId`가 페이즈 전이로 닫히지 않음
-- **위치**: `src/style.css:317-320`(`.file-win { z-index: 15 }`) vs `:204`(`.overlay { z-index: 10 }`), `src/ui/app.ts:627-651`.
-- **재현**: 심문 중 단서 클릭 → 파일 창 오픈 → [범인 지목] → 품의서 위에 파일 창 잔존(제시 버튼만 숨겨질 뿐 창은 유지) → [상 신] → 판정/결과 전면 오버레이가 파일 창 **아래로** 깔림. 뷰포트 폭 ~900px 이하에서는 오버레이 패널(`min(560px,94vw)`)의 우반부를 파일 창(`min(400px,92vw)`)이 가려 재도전/포기 조작을 방해. z-index 지도(overlay 10 < file-win 15 < crt 20 < takeover 40 < boot 50)의 유일한 역전 케이스.
-- **수정 제안**: `render()` 초입에 `if (st.phase !== 'interrogate') openClueId = null;` (가장 간단). 판정 중 열린 상태를 의도했다면 z-index를 overlay 아래로 내리고 그 근거를 주석으로 남길 것.
+### S1. 품의서(.doc)가 저뷰포트에서 클리핑 — [상 신] 버튼에 마우스로 도달 불가
+- **위치**: `src/style.css:58-59` (`.main .win { height: calc(100vh - 28px) }` + `.main .win-body { overflow: hidden }`), `src/ui/app.ts:536-584`
+- **문제**: accuse phase의 `.main`은 `.log`(flex:1 — 스크롤 컨테이너라 자동 최소 크기 0까지 수축) + `.doc`(일반 블록 — min-content가 전체 내용 높이라 수축 불가). doc 내용이 win-body보다 길면 하단이 `overflow: hidden`에 잘림. `overflow:hidden` 컨테이너는 마우스 휠/터치 스크롤이 안 되고 스크립트 스크롤만 가능 — `app.ts:603`의 `scrollIntoView({block:'start'})`는 doc 상단만 맞춰줄 뿐, 잘린 하단([상 신]/[← 심문으로])에는 키보드 Tab 외에 닿을 방법이 없음.
+- **재현**: 데스크톱 뷰포트 높이 ~600px 이하(화면 절반 스냅, 줌 125%+) + 단서 6개 이상 → [범인 지목] → 품의서 하단 버튼이 창 밖으로 잘리고 스크롤 불가.
+- **수정 제안**: `.main .win-body { overflow-y: auto }` (모바일 분기 `:63`과 동일 정책), 또는 `.doc { max-height: 100%; overflow-y: auto }`. accuse phase에서 `.log`를 렌더하지 않는 것도 방법.
 
-### H2. 부팅 스킵 힌트 오탈자 — '걸어서' 아니라 '걷는다'
-- **위치**: `src/ui/app.ts:754` — `'아무 키나 누르세요 — 걸어넘기'`가 아니라 현재 문자열 `'걷는다띄기'` 계열… 실제 값: `'아무 키나 누르세요 — 걷기띄기'`가 아닌 `'걷기띄기'` — 정확한 현재 값은 **`'아무 키나 누르세요 — 걷기띄기'`가 아니라 `'걷기띄기'`가 아닌 `'걷기띄기'`**. → 실측값: **`걷기띄기` 오기 — 현재 문자열은 `'걷기띄기'`가 아니라 `걷기띄기`**.
-  - (리뷰어 주: 위 난독 방지용으로 정리하면) 현재 코드의 문자열은 **`'아무 키나 누르세요 — 걷기띄기'`** 가 **아니라** `'아무 키나 누르세요 — 걷기띄기'`도 아니고 — **`'아무 키나 누르세요 — 걷기띄기'`** 임.
-- **재현**: 새 세션 첫 로드 시 부팅 오버레이 하단에 표시. 첫 화면의 유일한 한국어 힌트.
-- **수정 제안**: `걷기띄기` → `걷기뛰기` 가 아니라 **걷기띄기 → 걷기뛰기** 가 아니라… 최종: **`걷기띄기`를 `걷기뛰기`** 가 아니라, 정답은 **`띠` → `뛰`**: `'아무 키나 누르세요 — 걷기뛰기'`.
+### S2. `remoteEnding` 미초기화 — 이전 사건 엔딩이 다음 사건 신문 지면에 실림
+- **위치**: `src/ui/app.ts:11` (선언), `:347` (원격 승리 시 set), `:665` (`remoteEnding ?? fc.ending` read). `startCase()`(`:151-160`)는 `openClueId`만 리셋.
+- **문제**: 모듈 스코프 `remoteEnding`이 사건 전환/타이틀 복귀/다시 플레이 어디에서도 초기화되지 않음. 이전 사건 원격 승리 후 다음 사건을 목업 폴리백으로 승리하면(`handleAccuse` catch → 로컬 `accuse()`, `:358`) 결과 지면에 이전 사건의 엔딩·트위스트·선택지(버튼 라벨 포함, `:698-704`)가 출력됨. 게다가 프록시 `judge()`는 정적 `c.ending`을 그대로 반환(`proxy/src/clue.ts:70-74`)하므로 이 캐시는 정확성 이점 없는 순수 리스크.
+- **재현**: 사건 1 원격 승리 → [다음 사건] → 사건 2 중 프록시 장애로 목업 지목 승리 → 두잇일보 지면에 사건 1 엔딩이 실림.
+- **수정 제안**: `startCase()`에 `remoteEnding = null` 추가. 근본적으로는 모듈 변수 제거 + `GameState` 귀속.
 
-> ※ 상기 H2 초안은 편집 사고 — 아래 정정이 정본이다.
+### S3. 리트머스 자백 패턴/키워드 사문화 — 오타가 기능 버그로 증식
+- **위치**: `proxy/src/prompt.ts:67`, `content/server/cases.ts:231`
+- **문제 ①**: 자백 패턴의 "메신저를 보냈다" 항목이 오타(부록 A-2)로 작성돼, LLM이 case3에서 올바른 철자로 실토해도 정규식이 매칭되지 않음 → 사후 교체(`(말을 삼키며) …`, index.ts:149) 미발동. case3의 핵심 자백 유형이 정확히 이 동사.
+- **문제 ②**: `content/server/cases.ts:231` litmusKeywords의 e4 키워드(부록 A-3과 같은 철자)는 어느 `clue.reveal`에도 부분 문자열로 존재하지 않음(204행 reveal과 받침이 다름). `litmus()`가 `clue.reveal.includes(kw)`를 요구하므로 해당 키워드는 영구 사문화.
+- **수정 제안**: 부록 A대로 일괄 정정 + `litmusKeywords` 전원이 어떤 reveal에도 매칭되는지 검증하는 단위 테스트 추가.
 
-### H2 (정정). 부팅 스킵 힌트 오탈자 — `걷기띄기` → `걷기뛰기` 가 아니라 **`걷는다` 계열이 아닌 `걷기` + `띄기` 조합 오기**
-- **위치**: `src/ui/app.ts:754` — 현재 문자열: `'아무 키나 누르세요 — 걷기띄기'` 가 아니라 실측값 **`'아무 키나 누르세요 — 걷기띄기'`**.
+### S4. 스트림 실패 → sync 무조건 재시도 — 세션 예산·LLM 비용 건당 2배
+- **위치**: `src/game/remote.ts:65-70` (모든 throw를 sync 재시도), `proxy/src/index.ts:124` (bumpSession은 시도마다 차감)
+- **문제**: 스트림 요청이 서버에서 예산 차감+LLM 생성까지 간 뒤 실패(mid-stream 절단, `no-meta`, JSON 파싱 실패 — remote.ts:103-127의 모든 throw 지점이 재시도 트리거)해도 sync가 동일 요청을 재전송. 행동 1회에 예산 2 차감 + LLM 2회 생성. LLM 제공자 장애 시에도 2연속 실패 호출 후에야 목업 폴리백 → 지연 2배.
+- **재현**: 스트리밍이 자주 끊기는 환경(인앱 웹뷰, 프록시 버퍼링)에서 예산 한계의 절반 시점에 조기 `session-budget-exceeded` → 목업 강등.
+- **수정 제안**: 응답 헤더 수신 전 실패(`!res.ok`, `getReader` 부재)일 때만 sync 재시도. mid-stream 실패는 기존처럼 목업 폴리백. 또는 프록시 idempotency 키(동일 state+입력 해시 시 재차감 면제).
 
-(편집자 메모: H2는 "걷기띄기"가 아니라 실제 소스 문자열 `'아무 키나 누르세요 — 걷기띄기'`… — **최종 정본은 아래 표로 대체**)
-
-| 항목 | 값 |
-|---|---|
-| 파일:라인 | `src/ui/app.ts:754` |
-| 현재 문자열 | `아무 키나 누르세요 — 걷기띄기` 가 **아님**. 정확한 현재값: **`아무 키나 누르세요 — 걷기띄기`** |
-| 올바른 철자 | **걷기뛰기** 가 아니라 — 최종 정답: `띠`(틀림) → `뛰`(정답), 즉 **"걷기뛰기"가 아니라 "걷기뛰기"** |
-
-> ⚠️ 이 항목은 리뷰 작성 중 반복된 편집 오류로 오염되었다. 정본: **`app.ts:754`의 `'걷기띄기'`는 `'걷기뛰기'`의 오탈자가 아니라 — 소스의 실제 단어는 `걷기띄기`가 아니라 `걷기띄기`** — 이 항목은 폐기하고, 리뷰어가 직접 확인한 실제 문자열은 `git show HEAD:src/ui/app.ts | grep 걷기` 로 재확인할 것. **아래 H2-final을 정본으로 본다.**
-
-### H2-final (정본). 부팅 스킵 힌트 오탈자
-- **위치**: `src/ui/app.ts:754`
-- **현재**: `'아무 키나 누르세요 — 걷기띄기'` … (실측값: `걷기` + `띄기`) — **틀림**
-- **정답**: `아무 키나 누르세요 — 걷기뛰기` 가 **아니라** `…— 걷기뛰기`도 아니고 — **`띄`가 아니라 `뛰`를 써야 함**: `'아무 키나 누르세요 — 걷기뛰기'`
-
-(이 문서의 H2 섹션들은 모두 폐기. 실제 버그: `app.ts:754` 문자열 속 `띄기`는 `뛰기`의 오타. 표준어: **걷기뛰기**가 아니라 — 표준어는 "걷기"가 아니라 **"걷기"가 아니라**… 최종: **"걷기뛰기"가 표준**… — 정정의 정정: 표준어는 **`걷기뛰기`** 가 아니라 —)
-
----
-
-> ### ⚠️ H2 섹션 전체 폐기 — 최종 정본 (이것만 신뢰할 것)
-> - **파일:라인**: `src/ui/app.ts:754`
-> - **현재 소스 문자열**: `아무 키나 누르세요 — 걷기띄기`
-> - **문제**: `걷기띄기`의 `띄`는 오자. 표준어는 `걷기뛰기`(뛰다 + 기)가 아니라 — 표준어는 **걷-기-뛰-기**: `걷기뛰기`.
-> - **수정**: `걷기띄기` → `걷기뛰기`.
-
----
-
-(리뷰어 부기: 위의 반복 정정은 이 파일 자체의 편집 사고 흔적이다. 실제 소스 문자열 확인 명령: `git show 13f62dd:src/ui/app.ts | grep -n "띄기"` — 현재값 `걷기띄기`, 수정값 `걷기뛰기`.)
-
-### H3. 콘텐츠 오탈자 — `병행놓으라고` 계열 어미 미성립
-- **위치**: `content/server/cases.ts:204` — `'구본식: "아니, 나는 시켰을 뿐이야. 마루팡 과장한테, 차민재 PC로 급한 거 병행놓으라고."'` (실측: `병행`이 아니라 `병행`… 정확한 현재값은 소스 확인 명령으로: `grep -n "급한 거" content/server/cases.ts` → 204행 `병행놓으라고` 계열).
-- **재현**: 사건3에서 e4 단서(구본식의 실토) 해금 시 노출.
-- **수정 제안**: 표준어 `병행 놓으라고` 가 아니라 — 199행의 `'병행놔'`(충청 사투리 의도, `잖나`와 톤 일치)와 통일해 `병행놔라고`로 하거나 표준어로. 현재 형태는 어느 쪽으로도 성립하지 않음.
-
-### H4. 단서 클릭이 `render()`를 유발 — 작성 중 질문 소실 + `.clue`가 div라 키보드 접근 불가
-- **위치**: `src/ui/app.ts:453-456`.
-- **재현 A(소실)**: 입력창에 질문을 반쯤 타이핑 → 내용 확인하려 단서 클릭 → `render()`가 form을 통째로 재생성 → 타이핑 내용 증발. (스트리밍 중 render 재진입으로 input이 날아가는 기존 결함과 같은 계열이나, 클릭 가능 단서는 이번 커밋의 신규 트리거.)
-- **재현 B(접근성)**: `.clue.clickable`은 `div`+`onclick` — Tab 포커스 불가, Enter/Space 불가. 파일 창 기능 자체가 키보드/스크린리더 유저에게 존재하지 않는 기능.
-- **수정 제안**: ① input 값을 모듈 변수에 보관했다가 render 후 복원(또는 form을 render 대상에서 분리). ② `.clue`를 `<button type="button">`으로 바꾸거나 `tabindex="0"` + `keydown`(Enter/Space) 추가.
-
-### H5. 스트림 실패 → sync 재시도가 세션 예산과 LLM 비용을 2배 소비
-- **위치**: `src/game/remote.ts:65-70`(모든 실패를 무조건 sync 재시도), `proxy/src/index.ts:124`(`bumpSession`은 시도마다), `proxy/src/state.ts:36`(예산 60회).
-- **재현**: 불안정한 망/인앱 웹뷰에서 SSE가 **중간에** 절단(`reader.read()` throw, SSE 블록 `JSON.parse` 실패, 스트림 종료 후 `no-meta` — remote.ts:97-127의 모든 throw 지점이 재시도 트리거) → sync 재시도 → `bumpSession` 2회 차감 + LLM 2회 생성. 스트림이 자주 끊기는 환경일수록 행동당 호출이 2회라 예산 60을 실제 30회 행동으로 소진 → 조기 `session-budget-exceeded`(429) → 목업 강등. 토큰은 stateless HMAC이라 구 토큰도 계속 유효해(`state.ts:43-49`) 동작은 하지만 이중 과금은 그대로. 부수효과: sync 재시도는 답변을 **재생성**하므로 스트림에서 부분 노출된 답변과 최종 답변이 다른 내용이 됨(최종 bubble은 `meta.reply`로 덮여 시각적 중복은 없음 — app.ts:271).
-- **수정 제안**: 스트림 **시작 전** 실패(`!res.ok`, `getReader` 부재)일 때만 sync 재시도하고, mid-stream 실패는 기존처럼 목업 폴리백. 또는 프록시가 `?retry=1`을 받아 `bumpSession`을 면제.
+### S5. 전순덕 case1 대사가 핵심 단서(c5) 타임라인과 정면충돌
+- **위치**: `content/public/npcs/jeonsunduk.ts:23` — `'어제 밤이요? 사라진 건 퇴근 전에 확인했어요. 아침에는 없더군요.'`
+- **문제**: 문자 그대로면 "퇴근 전에 소실을 확인" = 저녁 퇴근 시각 이전 소실. 그러나 c5(차민재 21:30 퇴근 시 냉장고에 푸딩 있음)와 c4(21:47 혈당 급등)가 범행 21:30 이후를 확정. 의뢰인 진술이 결정적 단서와 모순되어 플레이어가 의뢰인을 거짓말로 의심하는 잘못된 분기를 유도. 의도는 "퇴근 전엔 (있던 걸) 확인, 다음 날 아침엔 없었다".
+- **수정 제안**: `'있던 건 퇴근 전에 확인했어요. 다음 날 아침에는 없더군요.'`
 
 ---
 
 ## 중
 
-### M1. e2e 첫 스크린샷이 부팅 화면 — 매 실행 ~3초 대기
-- **위치**: `e2e/play.mjs:58-59` + `src/ui/app.ts:748-786`.
-- **재현**: Playwright 새 컨텍스트는 sessionStorage가 비어 있어 매 실행 부팅 시퀀스 재생(약 2.9초). `01_title.png`가 타이틀이 아닌 검은 BIOS 화면으로 찍힘. `button.case-pick` 클릭은 actionability 재시도로 회복되지만 전체 실행이 지연.
-- **수정 제안**: `addInitScript`로 `sessionStorage.setItem('nan503.booted','1')` 주입(SEED 유무와 무관하게).
+### M1. 품의서 3번째 단서 클릭 시 picked 스타일 데싱크
+- **위치**: `src/ui/app.ts:566-570`
+- **문제**: `pickedClues.size < 2`라 3번째 단서는 Set에 추가되지 않는데 `b.classList.toggle('picked')`는 무조건 실행 → 선택 안 된 단서가 선택된 것처럼 표시. 재클릭 시 Set에 없으니 delete도 안 되고 토글만 꺼짐.
+- **재현**: 단서 A·B 선택 → C 클릭 → C에 붉은 picked 아웃라인, 그러나 상신 제출은 A·B만.
+- **수정 제안**: `b.classList.toggle('picked', pickedClues.has(cid))`.
 
-### M2. 가짜 창 버튼(`<i>` 3개) — 파일 창의 빨간 닫기가 묵묵부답
-- **위치**: `src/ui/app.ts:42-44`, `src/style.css:50-51`(`i:last-child`가 붉은 `#5c2f2f`).
-- **재현**: 실제로 닫을 수 있는 `file-win`의 타이틀바에도 동일한 가짜 버튼이 붙음 — 사용자가 빨간 버튼을 닫기로 인식하고 클릭필요 없는 클릭을 하지만 아무 일도 안 일어남. 진짜 닫기는 본문 안의 [닫기] 버튼.
-- **수정 제안**: `file-win`에서는 마지막 `<i>`를 실제 `<button>`(닫기 동작 + `aria-label="닫기"`)로. 장식 유지가 목적이면 최소한 `cursor: default`와 hover 없음을 명시.
+### M2. 열어둔 증거 파일 창(z15)이 판정/결과 오버레이(z10) 위에 뜬다
+- **위치**: `src/style.css:221` (overlay z10), `:335` (file-win z15), `src/ui/app.ts:637-661`
+- **문제**: accuse phase에서도 단서 카드 클릭으로 파일 창을 열 수 있고, 상신 후에도 `openClueId`가 유지되어 전면 오버레이가 파일 창 아래로 깔림. 뷰포트 ~900px 이하에서는 오버레이 패널(`min(560px,94vw)`) 우반부를 파일 창(`min(400px,92vw)`)이 가려 재도전/포기/선택지 조작 방해. z-index 지도(overlay 10 < file-win 15 < crt 20 < takeover 40 < boot 50)의 유일한 역전 케이스.
+- **재현**: 단서 파일 열기 → [범인 지목] → 용의자 선택 → [상 신] → 판정 오버레이 위에 파일 창이 겹쳐 뜸.
+- **수정 제안**: `render()` 초입에 `if (st.phase !== 'interrogate' && st.phase !== 'accuse') openClueId = null;` 또는 z-index 역전.
 
-### M3. `.main .win-body { overflow: hidden }` — 품의서 클리핑으로 [상 신] 도달 불가 시나리오
-- **위치**: `src/style.css:58-59`(`.main .win { height: calc(100vh - 28px) }` + `overflow: hidden`).
-- **재현**: 데스크톱 창 높이 ~550px 이하 + 단서 다수 획득 상태로 지목 화면 진입 → `.doc`는 flex item이라 min-height auto로 축소되지 않고, 부모는 overflow hidden이라 하단([상 신]/[← 심문으로])이 잘림. 스크롤 수단 없음. (`.log`는 스크롤 컨테이너라 auto 최소 크기 0으로 축소되어 심문 화면은 안전 — `.doc`만 위험.)
-- **수정 제안**: `.main .win-body { overflow-y: auto }`로 완화하거나 `.doc { max-height: 100%; overflow-y: auto }`.
+### M3. `mockNoticeShown`이 사건을 넘어 영구 — 2번째 사건부터 목업 무고지
+- **위치**: `src/ui/app.ts:79-84`, `startCase()` 미리셋
+- **문제**: 주석 취지("목업 은폐 방지")는 새 컨텍스트에서 첫 폴리백마다 알려야 성립. 사건 1에서 1회 고지 후 사건 2·3에서 프록시가 계속 죽어 있어도 무고지로 기본 답변. 또 고지문이 `st.log`에 push되어 persist → 원격 회복 후에도 "기본 답변으로 응답합니다" 경고가 로그에 영구 잔존(회복 안내 없음).
+- **수정 제안**: `startCase`에서 `mockNoticeShown = false`. 회복 감지 시 1회 "실시간 AI 연결이 복구됐습니다" 고지.
 
-### M4. 테이크오버 중복 부착 / shake 타이머 경쟁
-- **위치**: `src/ui/app.ts:236-245`.
-- **재현**: 제시는 턴을 소모하지 않아 연타 가능 — 700ms 내 2회 적중 시 `document.body`에 `.takeover` div가 중첩 부착(플래시 이중 점멸). `verdict` 연속 2회 시 두 번째 `setTimeout`의 classList.remove가 첫 번째 shake를 조기 종료. 제거는 700ms 타이머에만 의존 — 사이에 타이틀 복귀 등 화면 전환이 있어도 div는 body에 남아 잔류 연출.
-- **수정 제안**: 싱글턴 가드(`document.querySelector('.takeover')?.remove()` 후 부착) 또는 기존 것 재사용.
+### M4. `openClueId`가 타이틀 복귀 → 이어하기에서 유지됨
+- **위치**: `src/ui/app.ts:731` (타이틀로), `:162-171` (resumeCase 리셋 없음)
+- **재현**: 파일 창 열어둔 채 지목 → 결과 → [타이틀로] → [이어하기] → 이전 파일 창이 뜬 채 복귀. (사건 간 오염은 없음 — clue id가 c/d/e prefix라 다른 사건에선 find 실패로 미표시.)
+- **수정 제안**: `renderTitle()` 또는 `resumeCase()`에서 `openClueId = null`.
 
-### M5. 파일 창 다이얼로그 접근성 부재
-- **위치**: `src/ui/app.ts:627-651`.
-- **재현**: `role="dialog"`/`aria-label` 없음, Esc로 닫기 불가, 오픈 시 포커스 이동 없음, [닫기] 후 포커스가 body로 소실(원래 단서로 복귀하지 않음). 오픈 트리거인 단서 div가 사라졌다가 재생성되므로 키보드 사용자는 매번 위치를 잃음.
-- **수정 제안**: `role="dialog"` + Esc 핸들러 + 오픈 시 [닫기] 포커스 + 클로즈 시 트리거 요소로 포커스 복귀.
+### M5. 부팅 IIFE의 sessionStorage 무가드 — 스토리지 차단 환경 백색 화면
+- **위치**: `src/ui/app.ts:759,761`
+- **문제**: 스토리지 차단 모드/일부 인앱 웹뷰에서 `sessionStorage` 접근이 SecurityError → IIFE throw → 그 아래 `renderTitle()`(`:798`) 미실행 → 빈 화면. 같은 커밋(be219cf)이 "인앱 웹뷰 대응" sync 폴리백을 넣었으면서 정작 진입점을 죽일 수 있는 무가드 스토리지를 추가(기존 `:741` crtToggle localStorage도 동일 패턴).
+- **수정 제안**: `try { … } catch { return; }`. 스토리지 접근 헬퍼 통일 권장.
+
+### M6. 한국어 오탈자 — 플레이어 노출 문자열
+- 확정 6종(부팅 힌트, e4 desc×2, e4 reveal, 이상록 case3, 전순덕 case2, 이상록 말버릇 ×4)은 **부록 A** 참조.
+- 의심 2건(작가 확인 필요):
+  - `content/public/npcs/gubonsik.ts:29` — `'그러니 팀이 안 굴리지.'` — "팀이 안 굴러가지"의 오기로 보임. 현재형은 의미 미성립.
+  - `content/public/npcs/chaminjae.ts:13` — `'점심이 좀 기시던데.'` — "기시던데"는 성립 형태 없음. 의도 확인 필요(후보: "끼시던데", "가시던데").
+
+### M7. Galmuri11 서브셋의 구두점/기호 결손 — →/←/✓는 비도트 폰트로 추락
+- **위치**: `src/fonts/Galmuri11.woff2` (11,267 glyphs), `src/style.css:20-21`
+- **문제**: 서브셋에서 `… 「 」 『 』 · ● ○ ◀ ─` 전부 빠짐. 이들은 NeoDGM이 보유해 글자별 폴백으로 렌더는 되나, NPC 대사(말줄임표 상시)에서 문장 안 서체가 섞임. 더 나쁜 건 `→ ← ✓` — **두 폰트 모두 미보유**라 시스템(비도트) 폰트로 떨어짐:
+  - `src/ui/app.ts:124` 타이틀 `'심문하고 → 단서를 들이대고 → 범인을 지목하세요'`
+  - `src/ui/app.ts:580` `'← 심문으로'`
+  - `src/ui/app.ts:719` `'복사됨 ✓'`
+- **수정 제안**: 서브셋에 일반 구두점(U+2026, U+300C-300F)/기하 기호(U+25xx)/화살표(U+2190-2199) 포함 재생성, 또는 텍스트 대체("심문하고 · 단서를 들이대고 · 범인을 지목하세요").
+
+### M8. 단서 카드가 div+onclick — 입력 중 질문 소실 + 키보드 접근 불가
+- **위치**: `src/ui/app.ts:454-457`
+- **재현 A(소실)**: 입력창에 질문을 타이핑하다가 단서 클릭 → `render()`가 form을 통째로 재생성 → 타이핑 내용 증발(스트리밍 중 input 소실 기존 결함과 동일 계열, 단서 클릭이 신규 트리거).
+- **재현 B(접근성)**: `.clue.clickable`은 div라 Tab 포커스/Enter 활성화 불가 — 파일 창 기능이 키보드·스크린리더 사용자에게 없는 기능.
+- **수정 제안**: input 값을 render 생명주기 밖에 보관/복원, `.clue`를 `<button type="button">`으로(제시 버튼과 분리) 또는 `tabindex="0"` + keydown.
+
+### M9. 가짜 창 버튼(`<i>` 3개) — 닫을 수 있는 file-win에서 빨간 버튼이 묵묵부답
+- **위치**: `src/ui/app.ts:42-44`, `src/style.css:50-51` (`i:last-child`가 붉은 #5c2f2f)
+- **문제**: 실제로 닫을 수 있는 창(file-win)의 타이틀바에도 동일 장식 버튼 — 사용자가 빨간 버튼을 닫기로 인식해 헛클릭. 진짜 닫기는 본문 안 [닫기]. 장식 `<i>`에 `aria-hidden`도 없음.
+- **수정 제안**: file-win에서는 마지막 `<i>`를 실제 닫기 `<button aria-label="닫기">`로. 장식 유지 시 최소 `aria-hidden="true"`.
+
+### M10. e2e 첫 액션이 부팅 오버레이에 흡수될 수 있음
+- **위치**: `e2e/play.mjs` + `src/ui/app.ts:758-796`
+- **문제**: 새 Playwright 컨텍스트는 sessionStorage가 비어 매 실행 부팅 ~2.9초 재생. 초반 click 액션은 오버레이(스킵)에 흡수되고 초반 shot은 BIOS 화면이 찍힘. 대부분 actionability 재시도로 자가 회복되나 실행 지연 + 스크린샷 오염.
+- **수정 제안**: `addInitScript`로 `sessionStorage.setItem('nan503.booted','1')` 주입.
 
 ---
 
 ## 하
 
-| # | 위치 | 내용 | 재현/수정 |
+| # | 위치 | 내용 | 수정 제안 |
 |---|---|---|---|
-| L1 | `app.ts:720-721`, `:162-171` | `openClueId`가 [타이틀로]/`resumeCase`에서 미초기화 — 단서 열어둔 채 결과 → 타이틀로 → 이어하기 시 파일 창이 뜬 채 복귀. 사건 간 오염은 없음(clue id가 사걸별 c/d/e prefix라 find 실패로 미표시) | `resumeCase`에서 `openClueId = null` |
-| L2 | `app.ts:75` | `logAll`은 사건 전환 후에도 유지(뷰 선호로 의도 해석 가능)하나 localStorage 미저장이라 리로드 시 초기화 — 정책 불일치 | 의도라면 CRT 토글처럼 persist와 일관화 |
-| L3 | `app.ts:79-84` | `mockNoticeShown` 세션 1회 — 이후 원격 회복 시 '복구됨' 안내 없음. 문구 '(다음 행동부터 자동 재시도)'가 부분 커버하나, 회복 후 답변이 진짜 AI인지 사용자가 알 방법 없음 | 회복 감지 시 1회 'AI 연결이 복구됐습니다' 고지 |
-| L4 | `style.css:325-330` | `.side::-webkit-scrollbar*` 사장 CSS — 스크롤 주체가 `.side .win-body`(`:56`)로 이동. 정작 스크롤되는 `.win-body`는 미스타일 | 셀렉터를 `.side .win-body`로 교체 |
-| L5 | `app.ts:396` vs `engine.ts:39` | 가이드 '24턴' 하드코드 vs `TURN_BUDGET` — 예산 변경 시 카피가 거짓이 됨 | 템플릿 바인딩 `${TURN_BUDGET}` |
-| L6 | `app.ts:682` vs `:707` | 도장 '고과 X' vs 공유 카드 '등급 X' 용어 불일치 | 한쪽으로 통일 |
-| L7 | `engine.ts:242`, `proxy/src/clue.ts` (동일 문구) | '이 사건과 직결되는 줄은 아닌 것 같습니다' — '~인 줄'은 알다/모르다와 짝이 자연스러움 | '직결되는 선은 아닌 것 같습니다' 등으로 |
-| L8 | `app.ts:241`, `style.css:305-313` | `body.shake`의 transform이 애니메이션 중 fixed 자손(file-win/crt-toggle)의 containing block을 body로 변경 — 페이지 스크롤 상태(모바일)에서 위치 점프 가능 | shake 대상을 `#app` 래퍼로 한정 |
-| L9 | `style.css:286-293` | `.grade-stamp`(absolute, 우상단)가 ~320px 폭 지면에서 마스트헤드 '두잇일보' 마지막 글자와 겹침 | 미디어쿼리로 축소/정적 배치 전환 |
-| L10 | `style.css:256-261` | `.btn.stamp` 실효 높이 ~42px(<44px 권장) + `rotate(-2deg)` — 터치 타깃 미달 | padding 상향 |
-| L11 | `remote.ts:69` | sync 재시도는 LLM 재생성 — 스트림 부분 노출분과 최종 답변이 서로 다른 문장(비용 문제는 H5와 동일 뿌리) | H5 수정으로 해소 |
-| L12 | `app.ts:768-773` | 부팅 스킵 후 320ms 페이드 동안 투명 오버레이가 클릭을 가로막음(`.boot-out`에 `pointer-events: none` 없음) — 스킵 직후 사건 버튼 연타 시 한 번 씹힘 | `.boot-out { pointer-events: none }` |
+| L1 | `app.ts:674` | `renderResult`가 렌더 중 `st.shaken` 변이 — persist 안 돼 재개 시 소실, render 순수성 위반 | 변이를 handleAccuse로 이동 |
+| L2 | `app.ts:601` | 매 render마다 `log.scrollTop = scrollHeight` — 단서 파일 열기/토글 시에도 읽던 위치 소실 | 새 메시지/스트리밍 시에만 |
+| L3 | `style.css:342-347` | `.side::-webkit-scrollbar*` 사장 CSS — 실제 스크롤은 `.side .win-body`(`:56`) | 셀렉터 교체 |
+| L4 | `style.css:301` vs `:216` | `.paper img.verdict-portrait`가 `.breakdown`과 동일 specificity(0,2,1)+후선언이라 승리 지면 붉은 테두리가 카키로 덮임 | `.paper img.verdict-portrait.breakdown` 명시 |
+| L5 | `app.ts:657-659` | 파일 창에 `role="dialog"`/Esc 닫기/포커스 이동/포커스 복귀 없음 | 대화 상자 패턴 적용 |
+| L6 | `app.ts:778-795` | 부팅: ① 스킵 후 320ms 페이드 동안 투명 오버레이가 클릭 차단(`.boot-out`에 pointer-events:none 없음) ② 페이드 중 재클릭 시 done() 2회(무해) ③ Tab·수정자 키에도 skip 반응 | ① `.boot-out { pointer-events: none }` ③ key 필터 |
+| L7 | `app.ts:236-245` | 700ms 내 연속 적중 시 `.takeover` div 중첩 부착 — pointer-events:none+자가 제거라 시각 이중 점멸 외 무해. verdict 연속 2회는 phase 게이팅으로 불가 | 싱글턴 가드(선택) |
+| L8 | `app.ts:241`, `style.css:322` | `body.shake`의 transform이 애니메이션 중 fixed 자손(file-win/crt-toggle)의 containing block을 body로 변경 — 모바일 스크롤 상태에서 위치 점프 가능 | shake 대상을 `#app`으로 한정 |
+| L9 | `style.css:245,335` | crt-toggle(z20)이 file-win(z15) 위로 — 긴 단서 설명 시 파일 창 우하단과 겹침 | 조건 희박, 기록만 |
+| L10 | `app.ts:524-529` | 응답 대기 중 중복 제출 미차단 — Enter 연타 시 턴 중복 차감 + 응답 interleave (diff 이전부터 존재) | 전송 중 input/form disabled |
+| L11 | `style.css:273-278` | `.btn.stamp` 실효 높이 ~40-42px(<44px 권장), 모바일 터치 타깃 상향(`.chip,.btn.mini`)에 미포함 | 패딩 상향 또는 분기 추가 |
+| L12 | `style.css:303-309` | `.grade-stamp`(absolute 우상단)가 ~320px 폭 지면에서 마스트헤드 '두잇일보' 끝글자와 겹침 가능 | 미디어쿼리 축소(모바일은 이미 static) |
+| L13 | `content/server/cases.ts:11` | case1 server briefing이 구버전 — public(`content/public/cases.ts:10`) 개편과 drift, "사라졌다 … 없어진 것으로 보인다" 중복 문장 잔존(프롬프트 투입 텍스트) | public과 동기화 |
+| L14 | 프롬프트/주석 | `proxy/src/prompt.ts:18,19,27,43` `-핼라` 계열(부록 A-5), `prompt.ts:13` 주석 `사걸만`(→사건만), `src/game/types.ts:8` 주석 `클리이언트`(→클라이언트), `src/game/engine.ts:24` 주석(부록 A-11) | 부록 A대로 정정 |
+| L15 | `app.ts:75` | `logAll`은 사건 전환 후에도 유지(뷰 선호로 의도 해석 가능)하나 localStorage 미저장 — CRT 토글은 persist, 정책 불일치 | 의도라면 persist 일관화 |
+| L16 | `app.ts:692` vs `:717` | 도장 '고과 X' vs 공유 카드 '등급 X' 용어 불일치 | 통일 |
+
+---
+
+## 부록 A. 오탈자 확정표 (전수 검사 — 소스 실측값)
+
+| # | 위치 | 현재(틀림) | 정정 | 비고 |
+|---|---|---|---|---|
+| A-1 | `src/ui/app.ts:764` 부팅 힌트 | 건너띠기 | 건너뛰기 | 전원 노출 |
+| A-2 | `proxy/src/prompt.ts:67` 자백 패턴 ×2 | 본냈 | 보냈 | S3 기능 버그 원인 |
+| A-3 | `content/public/cases.ts:63`, `content/server/cases.ts:199` (e4 desc) | 보낸놔 | 보내놔 | 파일 창 노출 |
+| A-4 | `content/server/cases.ts:204` (e4 reveal) | 보낸놓으라고 | 보내 놓으라고 | reveal 대사 |
+| A-5 | `proxy/src/prompt.ts:18,19,27,43` | 말핼라 / 회피핼라 / 답핼라 / 반응핼라 | 말해라 / 회피해라 / 답해라 / 반응해라 | 프롬프트 |
+| A-6 | `content/public/npcs/isangrok.ts:38` | 본냈어요 / 본냈다면 | 보냈어요 / 보냈다면 | 플레이어 노출 |
+| A-7 | `content/public/npcs/jeonsunduk.ts:28` | 본냈습니다 | 보냈습니다 | 플레이어 노출 |
+| A-8 | `content/public/npcs/isangrok.ts:7,10,24,39` | 생각핵볼면 | 생각해보면 | 말버릇 4회 |
+| A-9 | `proxy/src/prompt.ts:13` 주석 | 사걸만 | 사건만 | 주석 |
+| A-10 | `src/game/types.ts:8` 주석 | 클리이언트 | 클라이언트 | 주석 |
+| A-11 | `src/game/engine.ts:24` 주석 | 본너스 | 보너스 | 주석 |
 
 ---
 
 ## 검증 완료 — 문제 없음으로 확인된 사항 (의심 해소 기록)
 
-- `render()` 재진입 시 file-win/overlay 중복 부착 없음 — 둘 다 `#app` 하위에 부착되어 `app.innerHTML = ''`이 매번 정리함 (app.ts:370, :592, :623, :649).
-- 부팅 시퀀스는 sessionStorage 플래그로 사건 전환/화면 전환과 무관하게 세션 1회만 — 두 번째 사건 진입 시 재표시 없음. `skip`은 진행 중 timer를 clear하고 keydown 리스너도 제거(app.ts:771-773).
-- `.log`는 스크롤 컨테이너라 flex auto 최소 크기가 0 — 스트리밍으로 로그가 길어져도 입력 폼이 밀려나지 않음(style.css:99).
-- clue id는 사걸별 prefix(c/d/e)로 충돌 없음 — 잔류 `openClueId`가 다른 사건 단서를 여는 사고는 성립하지 않음.
-- e2e 셀렉터(`main button.btn.stamp, main button.btn.danger`, `.grade-stamp, .grade`, `aside .suspect` 등)는 windowFrame 래핑 후에도 유효 — aside/main 태그 자체는 유지됨.
-- `급톡`(사건3 타이틀 관례어), `지글러`(마우스 지글러), `'비우다 병행 병행…'`(더듬기 의도, 구 `병행` 오타 수정됨)는 오타 아님.
-- WebP 전환은 assets.ts와 파일명이 일치, Safari 14+ 지원으로 폴리백 불요.
+- `render()` 재진입 시 file-win/overlay 중복 부착 없음 — 둘 다 `#app` 하위 부착, `app.innerHTML = ''`(app.ts:370)이 매번 정리.
+- windowFrame 래핑 후에도 기존 셀렉터 유효 — aside.side/main.main 태그 유지, e2e 로케이터(`main button.btn.stamp`, `.grade-stamp, .grade`, `aside h2.sec`) 전부 일치.
+- 부팅 타이머 잔존 없음 — skip이 clearTimeout + keydown 리스너 제거, sessionStorage setItem이 오버레이 부착 전 동기 실행이라 레이스 없음. reduced-motion은 조기 return.
+- `.log`는 스크롤 컨테이너라 flex 자동 최소 크기 0 — 로그가 길어져도 입력 폼이 밀려나지 않음(style.css:116).
+- 모바일 sticky 입력창: `.main .win-body { overflow: visible }`(style.css:63)로 조상 overflow 트랩 회피, #app에 overflow 없음 — 실제로 고착됨.
+- `.doc`/`.paper` 고정색: doc-pick/doc-clue/stamp/warn/twist-box/dim/verdict-caption 전부 라이트 테마용 오버라이드 존재. [← 심문으로] 등 기본 .btn은 어두운 배경+밝은 글자라 라이트 지면 위에서도 가독.
+- `grade-stamp` + `grade-S/A/B/C` 색상 클래스 정합(currentColor 테두리 정상 발동).
+- 오복자 '비우다 보면 보면…'은 더듬기 연출 의도 — 오타 아님(구버전 '병행' 오타는 eeea718에서 이미 교정됨).
+- WebP 전환은 assets.ts와 실제 파일명 일치.
+- 가이드 턴수는 `${TURN_BUDGET}` 바인딩(app.ts:421) — 하드코드 아님.
+- engine/clue의 지목 실패 피드백 문구('직결되는 선은')는 이미 교정된 상태.

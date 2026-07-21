@@ -9,18 +9,24 @@ let sessionToken = '';
 
 const DEFAULT_PROXY = 'https://nan503-proxy.apple021104.workers.dev';
 
+// 스토리지 차단 환경 가드 (인앱 웹뷰)
+const store = {
+  get(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } },
+  set(key: string, val: string): void { try { localStorage.setItem(key, val); } catch { /* 무시 */ } },
+};
+
 export function initRemote(): void {
   const params = new URLSearchParams(location.search);
   const q = params.get('remote');
   if (q) {
     REMOTE_URL = q;
-    localStorage.setItem('nan503.remote', q);
+    store.set('nan503.remote', q);
   } else if (params.get('mock') !== null) {
     REMOTE_URL = ''; // ?mock — 목업 모드 강제 (오프라인/디버그)
   } else {
-    REMOTE_URL = localStorage.getItem('nan503.remote') ?? DEFAULT_PROXY;
+    REMOTE_URL = store.get('nan503.remote') ?? DEFAULT_PROXY;
   }
-  sessionToken = localStorage.getItem('nan503.session') ?? '';
+  sessionToken = store.get('nan503.session') ?? '';
 }
 
 export function remoteEnabled(): boolean {
@@ -32,7 +38,7 @@ async function ensureSession(): Promise<string> {
   const res = await fetch(`${REMOTE_URL}/session`, { method: 'POST' });
   const j = (await res.json()) as { token: string };
   sessionToken = j.token;
-  localStorage.setItem('nan503.session', sessionToken);
+  store.set('nan503.session', sessionToken);
   return sessionToken;
 }
 
@@ -130,7 +136,7 @@ async function remoteAskStream(
   if (!meta) throw { kind: 'network', detail: 'no-meta' } as RemoteError;
   if (meta.token) {
     sessionToken = meta.token;
-    localStorage.setItem('nan503.session', sessionToken);
+    store.set('nan503.session', sessionToken);
   }
   return meta;
 }
@@ -159,7 +165,7 @@ async function remoteAskSync(
   const meta = (await res.json()) as MetaPayload;
   if (meta.token) {
     sessionToken = meta.token;
-    localStorage.setItem('nan503.session', sessionToken);
+    store.set('nan503.session', sessionToken);
   }
   onDelta(meta.reply); // 스트리밍 불가 환경이니 완성문 1회 전달
   return meta;

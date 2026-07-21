@@ -231,7 +231,13 @@ async function playPass(browser, { name, ctxOpts }) {
   const ctx = await browser.newContext(ctxOpts);
   const page = await ctx.newPage();
   page.setDefaultTimeout(15000);
-  const P = { name, shots: [] };
+  const P = { name, shots: [], reloaded: false, crashed: false };
+  // 병렬 세션 저장 → vite full-reload 감지 (측정 오염 방지)
+  let navCount = 0;
+  page.on('framenavigated', (f) => {
+    if (f === page.mainFrame()) { navCount += 1; if (navCount > 1) P.reloaded = true; }
+  });
+  page.on('crash', () => { P.crashed = true; });
   try {
     // ① 부팅 — 실측 타이밍 + 텍스트 넘침
     const t0 = Date.now();
@@ -304,17 +310,20 @@ async function playPass(browser, { name, ctxOpts }) {
     P.shots.push(await shotVp(page, `${name}_takeover_hit_mid`));
     await waitStable(page);
 
-    // ⑤ 증거 파일 창 (열어둔 채 지목 진행 — 스태킹)
+    // ⑤ 증거 파일 창 (H1: 지목 진입 시 자동 닫힘 검증 + M2: 진짜 ✕ 닫기 버튼 실측)
     await page.locator('aside .clue', { hasText: '캐러멜' }).first().click();
     await page.waitForTimeout(200);
     P.fileWin = await page.evaluate(() => {
       const fw = document.querySelector('.file-win');
       if (!fw) return { present: false };
       const r = fw.getBoundingClientRect();
+      const close = fw.querySelector('.win-close');
+      const cr = close?.getBoundingClientRect();
       return {
         present: true, rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), right: Math.round(r.right), bottom: Math.round(r.bottom) },
         zIndex: getComputedStyle(fw).zIndex, viewport: { w: innerWidth, h: innerHeight },
         fitsX: r.left >= 0 && r.right <= innerWidth, fitsY: r.top >= 0 && r.bottom <= innerHeight,
+        winClose: cr ? { w: Math.round(cr.width), h: Math.round(cr.height) } : null,
       };
     });
     P.shots.push(await shotVp(page, `${name}_filewin`));
@@ -323,6 +332,7 @@ async function playPass(browser, { name, ctxOpts }) {
     await page.locator('aside button.btn.danger', { hasText: '범인 지목' }).click();
     await page.waitForSelector('.accuse-row');
     await page.waitForTimeout(300);
+    P.fileWinAutoClosed = (await page.locator('.file-win').count()) === 0;
     P.doc = await page.evaluate(() => {
       const d = document.querySelector('.doc');
       const r = d.getBoundingClientRect();
@@ -349,7 +359,7 @@ async function playPass(browser, { name, ctxOpts }) {
     await page.waitForTimeout(200);
     P.shots.push(await shotVp(page, `${name}_doc_closeup`));
     P.docButtons = await measureButtons(page, 'doc-phase');
-    P.shots.push(await shotVp(page, `${name}_doc_filewin_stack`));
+    P.shots.push(await shotVp(page, `${name}_doc_view`));
 
     // ⑦ 상신 → verdict 셰이크 중간 실측 (S2 재검증: fixed 파괴)
     await page.locator('.accuse-row button', { hasText: '구본식' }).first().click();
@@ -374,21 +384,25 @@ async function playPass(browser, { name, ctxOpts }) {
     await page.waitForTimeout(1200);
     await waitStable(page);
 
-    // ⑧ 결과 오버레이 + 파일창 스태킹 (S3 재검증)
-    P.stackVerdict = await page.evaluate(() => {
-      const fw = document.querySelector('.file-win');
+    // ⑧ 결과 오버레이 회복 실측 (셰이크 종료 후 fixed 복귀하는가)
+    P.overlayAfter = await page.evaluate(() => {
       const ov = document.querySelector('.overlay');
       if (!ov) return { overlay: false };
-      if (!fw) return { overlay: true, fileWin: false };
-      const r = fw.getBoundingClientRect();
-      const el = document.elementFromPoint(r.x + r.width / 2, r.y + 12);
-      return { overlay: true, fileWin: true, fwZ: getComputedStyle(fw).zIndex, ovZ: getComputedStyle(ov).zIndex, topAtFileWin: el ? `${el.tagName}.${String(el.className).slice(0, 30)}` : null };
+      const r = ov.getBoundingClientRect();
+      const fw = document.querySelector('.file-win');
+      return {
+        overlay: true, top: Math.round(r.top), left: Math.round(r.left), w: Math.round(r.width), h: Math.round(r.height),
+        fileWin: !!fw, fwZ: fw ? getComputedStyle(fw).zIndex : null, ovZ: getComputedStyle(ov).zIndex,
+        scrollY: Math.round(scrollY),
+      };
     });
-    P.shots.push(await shotVp(page, `${name}_verdict_filewin_stack`));
+    P.shots.push(await shotVp(page, `${name}_verdict_overlay`));
 
-    // ⑨ 파일창 닫고 신문 실측
+    // ⑨ (파일창이 남아 있으면 닫고) 신문 실측
     const closeBtn = page.locator('.file-win button', { hasText: '닫기' });
     if (await closeBtn.count()) await closeBtn.first().click();
+    const closeX = page.locator('.file-win .win-close');
+    if (await closeX.count()) await closeX.first().click();
     await page.waitForTimeout(300);
     P.paper = await measurePaper(page, 'newspaper');
     P.shots.push(await shotVp(page, `${name}_newspaper_vp`));
