@@ -1,0 +1,16 @@
+[
+  { "suspect": "오복자" },
+  { "shot": "r4_ok_chips" },
+  { "ask": "파쇄함에서 뭐 나왔어요?" },
+  { "shot": "r4_ok_1" },
+  { "ask": "파쇄함 조각 좀 보여주세요" },
+  { "shot": "r4_ok_2" },
+  { "suspect": "이상록" },
+  { "shot": "r4_lee_chips" },
+  { "ask": "당번표 보여주세요" },
+  { "shot": "r4_lee_dangbun" },
+  { "present": "파쇄함 조각" },
+  { "shot": "r4_lee_present_d3" },
+  { "present": "정리 더미" },
+  { "shot": "r4_lee_present_d4" }
+]

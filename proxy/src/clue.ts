@@ -1,4 +1,5 @@
 import type { ServerCaseData, ServerClue, Trigger } from '../../src/game/types';
+import { refMatch } from '../../src/game/types';
 import type { GameState } from '../../src/game/engine';
 
 // ─── 트리거 평가 (서버측 진실 — 백엔드 확정 원칙, armedChains 2단 체인) ───
@@ -12,19 +13,19 @@ interface EvalCtx {
 function evalTrigger(c: ServerCaseData, s: GameState, t: Trigger, ctx: EvalCtx): 'unlock' | 'arm' | false {
   switch (t.type) {
     case 'topic': {
-      const hit = ctx.mode === 'ask' && t.npc === ctx.npcId && t.topics.some((kw) => ctx.topicsHit.includes(kw));
+      const hit = ctx.mode === 'ask' && refMatch(t.npc, ctx.npcId) && t.topics.some((kw) => ctx.topicsHit.includes(kw));
       if (!hit) return false;
       return t.then ? 'arm' : 'unlock';
     }
     case 'turn':
-      return t.npc === ctx.npcId && t.count <= (s.npc[ctx.npcId]?.turns ?? 0) ? 'unlock' : false;
+      return refMatch(t.npc, ctx.npcId) && t.count <= (s.npc[ctx.npcId]?.turns ?? 0) ? 'unlock' : false;
     case 'present': {
-      const hit = ctx.mode === 'present' && t.npc === ctx.npcId && t.clue === ctx.presentedClueId;
+      const hit = ctx.mode === 'present' && refMatch(t.npc, ctx.npcId) && refMatch(t.clue, ctx.presentedClueId ?? '');
       if (!hit) return false;
       return t.then ? 'arm' : 'unlock';
     }
     case 'confession':
-      return ctx.mode === 'present' && t.npc === ctx.npcId && t.requires_present === ctx.presentedClueId ? 'unlock' : false;
+      return ctx.mode === 'present' && refMatch(t.npc, ctx.npcId) && t.requires_present === ctx.presentedClueId ? 'unlock' : false;
   }
 }
 

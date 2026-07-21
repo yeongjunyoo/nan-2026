@@ -5,6 +5,9 @@ export const jeonsunduk: NpcPublic = {
   oneLiner: '규정이 곧 인격, 철벽 경리',
   personality: '규정이 세상의 중심. 사실 정의감은 뜨겁다.',
   greeting: '503호 의뢰인입니다. 사건 번호 503-001. 탕비실 푸딩 1개, 어제 밤 소실. 확인 부탁드립니다.',
+  greetingByCase: {
+    case2: '503호 의뢰인입니다. 사건 번호 503-002. 회식비 영수증 원본 1장, 마감 내일 18시. 찾아주시기 바랍니다.',
+  },
   fallback: {
     common: [
       '규정상 말씀드릴 수 없습니다.',

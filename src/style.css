@@ -336,6 +336,13 @@ img.verdict-portrait.breakdown { border-color: #5c2f2f; box-shadow: 0 0 0 4px rg
 .file-desc { line-height: 20px; margin: 0 0 8px; }
 .file-holder { color: var(--mut); font-size: 12px; margin: 0 0 10px; }
 .file-btns { display: flex; gap: 8px; }
+
+/* 엔딩 선택지 스티키 바 (신문 지면에 묻히지 않게) */
+.choice-bar {
+  position: sticky; bottom: 0; z-index: 3;
+  background: var(--panel); padding: 10px 0 4px;
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
 .log::-webkit-scrollbar, .side-win .win-body::-webkit-scrollbar, .overlay-panel::-webkit-scrollbar { width: 10px; }
 .log::-webkit-scrollbar-track, .side-win .win-body::-webkit-scrollbar-track, .overlay-panel::-webkit-scrollbar-track { background: transparent; }
 .log::-webkit-scrollbar-thumb, .side-win .win-body::-webkit-scrollbar-thumb, .overlay-panel::-webkit-scrollbar-thumb {

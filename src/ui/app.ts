@@ -119,7 +119,8 @@ const EXAMPLE_CHIPS: Record<string, string[]> = {
 function greetIfNew(st: GameState, id: string): void {
   if (st.log.some((e) => e.npc === id)) return;
   const npc = NPCS[id];
-  if (npc?.greeting) st.log.push({ who: npc.name, kind: 'npc', text: npc.greeting, npc: id });
+  const g = npc?.greetingByCase?.[st.caseId] ?? npc?.greeting;
+  if (g) st.log.push({ who: npc!.name, kind: 'npc', text: g, npc: id });
 }
 
 function persist(): void {
@@ -211,7 +212,7 @@ function pushReveals(st: GameState, fc: ServerCaseData, ids: string[]): void {
     const cl = fc.clues.find((x) => x.id === id);
     if (!cl?.reveal) continue;
     if (cl.holder === 'system') {
-      st.log.push({ who: '기록', kind: 'sys', text: `📁 ${cl.reveal}` });
+      st.log.push({ who: '시스템', kind: 'sys', text: `📁 ${cl.reveal}` });
       continue;
     }
     const holderName = NPCS[cl.holder]?.name ?? '???';
@@ -244,7 +245,7 @@ function announceUnlocks(st: GameState, fc: ServerCaseData, unlocked: Array<{ id
 }
 
 function armHint(st: GameState): void {
-  st.log.push({ who: '시스템', kind: 'sys', text: '상대가 크게 동요했습니다. 이 선에서 더 캐물을 수 있습니다.' });
+  st.log.push({ who: '시스템', kind: 'sys', text: '상대가 크게 동요했습니다. 이 단서가 건드린 모양입니다 — 같은 선으로 더 캐물어보세요.' });
 }
 
 /** 목업 경로용: 첫 수득 단서라면 제시 튜토리얼 1회 */
@@ -407,7 +408,7 @@ function render(): void {
   const side = el('aside', 'side');
   side.append(el('h1', 'case-title', c.title));
   if (st.phase !== 'briefing') {
-    side.append(el('p', 'turn-counter', `남은 질문: ${st.turnLeft}회${st.turnLeft <= TURN_WARN ? ' — 마감 임박' : ''}`));
+    side.append(el('p', 'turn-counter', `남은 질문: ${st.turnLeft}회${st.turnLeft === 0 ? ' — 마감' : st.turnLeft <= TURN_WARN ? ' — 마감 임박' : ''}`));
   }
 
   if (st.phase === 'briefing') {
@@ -473,7 +474,7 @@ function render(): void {
       if (wav) card.append(wav);
       const wText = el('span', 'suspect-text');
       wText.append(el('strong', '', `${w.name} · ${w.role}`));
-      wText.append(el('span', 'one-liner', `목격자? (심문 1회 = 2턴)`));
+      wText.append(el('span', 'one-liner', `목격자? (질문 1회 = 2턴)`));
       const wd = defenseSpan(st, c.witness);
       if (wd) wText.append(wd);
       card.append(wText);
@@ -659,7 +660,7 @@ function render(): void {
         p.src = NPC_VARIANT[st.accusedId].smile;
         p.alt = NPCS[st.accusedId]?.name ?? st.accusedId;
         panel.append(p);
-        panel.append(el('p', 'verdict-caption', `${NPCS[st.accusedId]?.name ?? ''} — 아쉽게도 빠져나갔습니다. 결정적 한 방이 부족했습니다.`));
+        panel.append(el('p', 'verdict-caption', st.verdict === 'partial' ? `${NPCS[st.accusedId]?.name ?? ''} — 방향은 맞습니다. 그를 묶을 결정적 물증이 부족했습니다.` : `${NPCS[st.accusedId]?.name ?? ''} — 아쉽게도 빠져나갔습니다. 결정적 한 방이 부족했습니다.`));
       }
       const retryBtn = el('button', 'btn primary', `재도전 (턴 +3, 남은 기회 ${st.retriesLeft})`);
       retryBtn.disabled = st.retriesLeft <= 0;
@@ -746,7 +747,9 @@ function renderResult(c: PublicCaseData, fc: ServerCaseData, st: GameState, main
       const b = el('button', 'btn', ending.choice.b.label);
       a.onclick = () => { st.endChoice = 'a'; markCleared(c.id); persist(); render(); };
       b.onclick = () => { st.endChoice = 'b'; markCleared(c.id); persist(); render(); };
-      main.append(paper, a, b);
+      const bar = el('div', 'choice-bar');
+      bar.append(a, b);
+      main.append(paper, bar); // 스티키 하단 바 — 신문 지면에 묻히지 않게
       return;
     }
     markCleared(c.id);

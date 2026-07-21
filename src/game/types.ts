@@ -1,9 +1,16 @@
 // ─── GDD v1.1 §4 Trigger DSL ───
+/** npc/clue 모두 단수 또는 배열 허용 (채널 함정 방지 — 같은 단서를 여러 인물이 줄 수 있고, 여러 단서가 같은 체인을 열 수 있다) */
+export type NpcRef = string | string[];
 export type Trigger =
-  | { type: 'topic'; npc: string; topics: string[]; note?: string; then?: Trigger }
-  | { type: 'present'; npc: string; clue: string; then?: Trigger }
-  | { type: 'turn'; npc: string; count: number }
-  | { type: 'confession'; npc: string; requires_present: string };
+  | { type: 'topic'; npc: NpcRef; topics: string[]; note?: string; then?: Trigger }
+  | { type: 'present'; npc: NpcRef; clue: NpcRef; then?: Trigger }
+  | { type: 'turn'; npc: NpcRef; count: number }
+  | { type: 'confession'; npc: NpcRef; requires_present: string };
+
+/** NpcRef 매칭 헬퍼 */
+export function refMatch(ref: NpcRef, val: string): boolean {
+  return Array.isArray(ref) ? ref.includes(val) : ref === val;
+}
 
 // ─── 공개 단서 (클리이언트) ───
 export interface PublicClue {
@@ -30,6 +37,8 @@ export interface NpcPublic {
   oneLiner: string;
   personality: string;
   greeting: string;
+  /** 사걸별 인사말 오버라이드 (의뢰인 등 사걵마다 역할이 다른 NPC용) */
+  greetingByCase?: Record<string, string>;
   /** 폴리백 대사 — 사건 무관 공통 + 사걍별 분리 (인격 붕괴 방지, reveal 문장 재사용 금지) */
   fallback: {
     common: string[];

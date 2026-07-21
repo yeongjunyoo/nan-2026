@@ -1,0 +1,58 @@
+[
+  {"note": "=== 블라인드 수사: 의뢰인 차민재 알리바이 ==="},
+  {"suspect": "차민재"},
+  {"ask": "어제 몇 시에 자리 비우셨어요? 외출은 어디 다녀오셨어요?"},
+  {"shot": "b01_cha_alibi"},
+  {"ask": "그 시간에 대리님 PC 로그 기록 같은 거 확인해 볼 수 있을까요?"},
+  {"shot": "b02_cha_pclog"},
+
+  {"note": "=== 용의자 알리바이 확인: 마루팡 ==="},
+  {"suspect": "마루팡"},
+  {"ask": "과장님은 어제 17시 반 이후에 자리에 계셨어요?"},
+  {"shot": "b03_ma_alibi"},
+  {"ask": "그럼 과장님 PC는 그 시간에 켜져 있었나요? 마우스나 키보드 기록은요?"},
+  {"shot": "b04_ma_pc"},
+
+  {"note": "=== 용의자 알리바이 확인: 이상록 ==="},
+  {"suspect": "이상록"},
+  {"ask": "어제 퇴근 전에 뭔가 목격한 거 없어요? 누가 차민재 대리 자리에 간 거 봤어요?"},
+  {"shot": "b05_lee_witness"},
+
+  {"note": "=== 용의자 알리바이 확인: 구본식 ==="},
+  {"suspect": "구본식"},
+  {"ask": "부장님은 어제 17시 55분에 어디 계셨어요?"},
+  {"shot": "b06_gu_alibi"},
+  {"ask": "그 업무, 원래 마감이 오늘까지였어요? 회의에서 뭐라고 정해졌었죠?"},
+  {"shot": "b07_gu_deadline"},
+
+  {"note": "=== 목격자 오복자 ==="},
+  {"suspect": "오복자"},
+  {"ask": "어제 17시 50분쯤 사무실에서 이상한 점 보신 거 있어요?"},
+  {"shot": "b08_ok_witness"},
+
+  {"note": "=== 수집 상황 확인 ==="},
+  {"shot": "b09_clues_mid"},
+
+  {"note": "=== 제시 체인 시도 ==="},
+  {"suspect": "마루팡"},
+  {"present": "PC 활성 로그"},
+  {"shot": "b10_present_e2_ma"},
+  {"present": "목격"},
+  {"shot": "b11_present_e5_ma"},
+  {"suspect": "구본식"},
+  {"present": "회의록"},
+  {"shot": "b12_present_e6_gu"},
+  {"ask": "부장님, 누구한테 시키신 거예요? 솔직히 말씀하세요."},
+  {"shot": "b13_gu_push"},
+  {"shot": "b14_clues_final"},
+
+  {"note": "=== 지목: 마루팡 (물리적 발신자) ==="},
+  {"accuseOpen": true},
+  {"shot": "b15_accuse_screen"},
+  {"accusePick": "마루팡"},
+  {"accuseClues": ["PC 활성 로그", "지글러", "목격"]},
+  {"shot": "b16_accuse_ready"},
+  {"accuseSubmit": true},
+  {"shot": "b17_verdict"},
+  {"shot": "b18_final"}
+]

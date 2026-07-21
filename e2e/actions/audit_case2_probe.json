@@ -1,0 +1,17 @@
+[
+  { "suspect": "이상록" },
+  { "ask": "파쇄함에 뭐 버렸어요?" },
+  { "ask": "뭘 버렸는지 정말 기억 안 나요?" },
+  { "shot": "probe_lee_2" },
+  { "ask": "솔직히 말하세요. 파쇄한 거 맞죠?" },
+  { "shot": "probe_lee_3" },
+  { "ask": "영수증을 파쇄했어요?" },
+  { "shot": "probe_lee_4" },
+  { "present": "마감 공지 메일" },
+  { "shot": "probe_lee_present_d0" },
+  { "suspect": "전순덕" },
+  { "ask": "카드사 승인 내역 보여주세요" },
+  { "shot": "probe_jeon_d1" },
+  { "ask": "영수증 사본은 없어요?" },
+  { "shot": "probe_jeon_d7" }
+]

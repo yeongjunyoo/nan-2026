@@ -1,0 +1,23 @@
+[
+  { "suspect": "이상록" },
+  { "ask": "파쇄함에 뭐 버렸어요?" },
+  { "ask": "정리 더미가 뭐예요? 책상 위에 있던 거요." },
+  { "shot": "win_lee_press" },
+  { "present": "파쇄함 조각" },
+  { "shot": "win_lee_present" },
+  { "suspect": "전순덕" },
+  { "ask": "카드 승인 내역 보여주세요" },
+  { "ask": "사본은 없어요?" },
+  { "shot": "win_jeon" },
+  { "suspect": "구본식" },
+  { "present": "회식 메뉴 구성" },
+  { "shot": "win_gu_present" },
+  { "accuseOpen": true },
+  { "shot": "win_accuse_open" },
+  { "accusePick": "이상록" },
+  { "accuseClues": ["파쇄함 조각", "조각에 섞인", "이상록의 시인"] },
+  { "shot": "win_accuse_picked" },
+  { "accuseSubmit": true },
+  { "shot": "win_verdict" },
+  { "expectText": "정답" }
+]

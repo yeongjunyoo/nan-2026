@@ -1,4 +1,5 @@
 import type { NpcPublic, ServerCaseData, ServerClue, Trigger } from './types';
+import { refMatch } from './types';
 
 // ─── 런타임 상태 ───
 export interface NpcState {
@@ -79,7 +80,7 @@ export interface AskReply {
 }
 
 function collectTopics(t: Trigger, npcId: string, out: Set<string>): void {
-  if (t.type === 'topic' && t.npc === npcId) {
+  if (t.type === 'topic' && refMatch(t.npc, npcId)) {
     for (const kw of t.topics) out.add(kw);
   }
   if ((t.type === 'topic' || t.type === 'present') && t.then) {
@@ -116,19 +117,19 @@ interface EvalCtx {
 function evalTrigger(c: ServerCaseData, s: GameState, t: Trigger, ctx: EvalCtx): 'unlock' | 'arm' | false {
   switch (t.type) {
     case 'topic': {
-      const hit = ctx.mode === 'ask' && t.npc === ctx.npcId && t.topics.some((kw) => ctx.topicsHit.includes(kw));
+      const hit = ctx.mode === 'ask' && refMatch(t.npc, ctx.npcId) && t.topics.some((kw) => ctx.topicsHit.includes(kw));
       if (!hit) return false;
       return t.then ? 'arm' : 'unlock';
     }
     case 'turn':
-      return t.npc === ctx.npcId && t.count <= (s.npc[ctx.npcId]?.turns ?? 0) ? 'unlock' : false;
+      return refMatch(t.npc, ctx.npcId) && t.count <= (s.npc[ctx.npcId]?.turns ?? 0) ? 'unlock' : false;
     case 'present': {
-      const hit = ctx.mode === 'present' && t.npc === ctx.npcId && t.clue === ctx.presentedClueId;
+      const hit = ctx.mode === 'present' && refMatch(t.npc, ctx.npcId) && refMatch(t.clue, ctx.presentedClueId ?? '');
       if (!hit) return false;
       return t.then ? 'arm' : 'unlock';
     }
     case 'confession':
-      return ctx.mode === 'present' && t.npc === ctx.npcId && t.requires_present === ctx.presentedClueId ? 'unlock' : false;
+      return ctx.mode === 'present' && refMatch(t.npc, ctx.npcId) && t.requires_present === ctx.presentedClueId ? 'unlock' : false;
   }
 }
 

@@ -42,8 +42,8 @@ export const case1: ServerCaseData = {
       id: 'c3', title: '부장실 휴지통의 캐러멜 소스', holder: 'gu',
       desc: '부장실 휴지통에서 발견한 캐러멜 소스 포장지 — 푸딩에 뿌려 먹는 그 소스.',
       trigger: {
-        type: 'present', npc: 'gu', clue: 'c1',
-        then: { type: 'topic', npc: 'gu', topics: ['휴지통', '비웠', '캐러멜'] },
+        type: 'present', npc: 'gu', clue: ['c1', 'c2'],
+        then: { type: 'topic', npc: 'gu', topics: ['휴지통', '쓰레기통', '비웠', '캐러멜'] },
       },
       reveal: '구본식: "아니 그건… 휴지통은 제가 비웠습니다만. 뭐가 들어 있었는지는, 나는 모릅니다. 모른다고요."',
     },
@@ -177,13 +177,13 @@ export const case3: ServerCaseData = {
     {
       id: 'e1', title: '차민재 외출 기록 15:00', holder: 'cha',
       desc: '차민재는 어제 15:00에 외출 후 미귀가. 사유는 "개인적인 일".',
-      trigger: { type: 'topic', npc: 'cha', topics: ['어제', '자리', '부재', '외출', '어디'] },
+      trigger: { type: 'topic', npc: 'cha', topics: ['자리를 비웠', '부재', '외출', '나갔다 온', '3시'] },
       reveal: '차민재: "어제요? 3시에 외출했어요. 개인적인 일이라서요, 그 이상은…"',
     },
     {
       id: 'e2', title: '차민재 PC 활성 로그 17:52~17:58', holder: 'system',
       desc: '부재중인 차민재의 자리 PC가 17:52~17:58에 활성화됐다. 그 시간 누군가 그 자리에 앉았다.',
-      trigger: { type: 'topic', npc: 'gu', topics: ['로그', '기록', '확인', 'IT'] },
+      trigger: { type: 'topic', npc: ['gu', 'cha'], topics: ['로그', '기록', '확인', 'IT'] },
       reveal: 'IT 협조 확인 — 차민재 자리 PC가 17:52에 깨어나 17:58에 다시 잠겼다. 그는 15시에 외출 중이었다.',
     },
     {

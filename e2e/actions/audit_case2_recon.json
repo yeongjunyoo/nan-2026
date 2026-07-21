@@ -1,0 +1,20 @@
+[
+  { "shot": "recon_start" },
+  { "suspect": "오복자" },
+  { "ask": "어제 회식 끝나고 뭘 봤어요?" },
+  { "shot": "recon_ok" },
+  { "suspect": "전순덕" },
+  { "ask": "영수증이 언제 마지막으로 있었어요?" },
+  { "shot": "recon_jeon" },
+  { "suspect": "차민재" },
+  { "ask": "어제 회식 어땠어요?" },
+  { "shot": "recon_cha" },
+  { "suspect": "구본식" },
+  { "ask": "영수증 어디 있는지 아세요?" },
+  { "shot": "recon_gu" },
+  { "suspect": "이상록" },
+  { "ask": "영수증 어디 있는지 아세요?" },
+  { "shot": "recon_lee" },
+  { "ask": "어제 뭐 하셨어요?" },
+  { "shot": "recon_lee2" }
+]
