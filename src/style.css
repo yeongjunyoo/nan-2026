@@ -60,6 +60,23 @@ strong, b { font-weight: normal; font-family: var(--font-system); }
 @media (max-width: 800px) {
   .side .win-body { max-height: none; }
   .main .win { height: auto; min-height: 72vh; }
+  .main .win-body { overflow: visible; } /* sticky 입력창이 ancestor overflow에 죽지 않도록 */
+  /* 모바일: 입력창은 화면 하단 고착 (카톡 패턴 — 단서가 쌓여도 밀리지 않음) */
+  .input-bar {
+    position: sticky; bottom: 0; z-index: 6;
+    background: var(--panel); padding: 10px 0 6px;
+  }
+  /* iOS 자동 줌 방지 — 입력만 Neo둥근모 네이티브 16px */
+  .input-bar input { font-family: var(--font-system); font-size: 16px; line-height: 20px; }
+  /* 터치 타겟 40px 확보 */
+  .chip, .btn.mini { min-height: 40px; padding: 8px 12px; }
+  /* 결과 오버레이 버튼 줄바꿈 */
+  .overlay-panel .accuse-row, .overlay-panel .btn { flex-wrap: wrap; }
+  .overlay-panel .btn { margin-bottom: 8px; }
+  /* 고과 도장은 지면 위에서 정렬 (마스트헤드 겹침 방지) */
+  .grade-stamp { position: static; display: table; margin: 8px auto; transform: rotate(3deg); }
+  /* CRT 토글은 플로팅 대신 맨 아래 플로우로 (입력창 가림 방지) */
+  .crt-toggle { position: static; display: table; margin: 10px auto; }
 }
 
 /* ─── 부팅 시퀀스 ─── */

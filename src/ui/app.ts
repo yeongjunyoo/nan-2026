@@ -369,6 +369,7 @@ function render(): void {
   const st = s;
   app.innerHTML = '';
   const root = el('div', 'layout');
+  let accuseDoc: HTMLElement | null = null;
 
   const side = el('aside', 'side');
   side.append(el('h1', 'case-title', c.title));
@@ -391,7 +392,7 @@ function render(): void {
     }
     const guide = el('div', 'guide-box');
     guide.append(el('strong', '', '수사 방법'));
-    guide.append(el('p', '', '① 왼쪽에서 심문할 사람을 고르고 자유롭게 질문하세요. 선택지는 없습니다. (질문 1회 = 1턴)'));
+    guide.append(el('p', '', '① 목록에서 심문할 사람을 고르고 자유롭게 질문하세요. 선택지는 없습니다. (질문 1회 = 1턴)'));
     guide.append(el('p', '', '② 얻은 단서는 [제시]로 들이대세요. 제시는 턴을 쓰지 않습니다.'));
     guide.append(el('p', '', '③ 핵심 단서를 모아 [범인 지목]. 24턴 안에 결론을 내야 합니다.'));
     side.append(guide);
@@ -533,6 +534,7 @@ function render(): void {
   } else if (st.phase === 'accuse') {
     // 품의서 지목 — "구속영장"이 아니라 "수사 결과 보고서 상신" (직장 밈)
     const doc = el('div', 'doc');
+    accuseDoc = doc;
     const caseNo = CASES.indexOf(c) + 1;
     doc.append(el('p', 'doc-no', `품의서 제503-${caseNo}호`));
     doc.append(el('h2', 'doc-title', '수사 결과 보고서'));
@@ -582,15 +584,27 @@ function render(): void {
     main.append(doc);
   }
 
-  root.append(
-    windowFrame('사건 파일 — 503호', side),
-    windowFrame(
-      st.phase === 'interrogate' ? `사내 메신저 — ${NPCS[st.activeSuspect].name}` : '사내 메신저 — 503호 수사 채널',
-      main,
-    ),
-  );
+  // 브리핑 단계는 빈 메신저 창을 띄우지 않는다 (특히 모바일에서 노이즈)
+  const sideWin = windowFrame('사건 파일 — 503호', side);
+  if (st.phase === 'briefing') {
+    root.append(sideWin);
+  } else {
+    root.append(
+      sideWin,
+      windowFrame(
+        st.phase === 'interrogate' ? `사내 메신저 — ${NPCS[st.activeSuspect].name}` : '사내 메신저 — 503호 수사 채널',
+        main,
+      ),
+    );
+  }
   app.append(root);
   log.scrollTop = log.scrollHeight;
+  // 지목 진입 시 품의서가 화면 안으로 (모바일에서 로그 아래에 묻히는 문제)
+  accuseDoc?.scrollIntoView({ block: 'start' });
+  // 모바일 심문은 최신 대화+입력창이 항상 보이게 페이지 하단 추적 (카톡 패턴)
+  if (matchMedia('(max-width: 800px)').matches && st.phase === 'interrogate') {
+    window.scrollTo(0, document.body.scrollHeight);
+  }
 
   // ─── 판정/결과는 전면 오버레이 (뷰포트 밖으로 밀리는 문제 방지) ───
   if (st.phase === 'verdict' || st.phase === 'result') {
@@ -751,7 +765,7 @@ const CRT_LEVELS: Array<[string, number]> = [['기본', 0.5], ['약함', 0.2], [
   sessionStorage.setItem('nan503.booted', '1');
   const ov = el('div', 'boot');
   const pre = el('pre', 'boot-text');
-  const hint = el('p', 'boot-hint', '아무 키나 누르세요 — 건너띠기');
+  const hint = el('p', 'boot-hint', '화면을 터치하거나 아무 키나 누르세요 — 건너띠기');
   ov.append(pre, hint);
   document.body.append(ov);
   const lines = [
