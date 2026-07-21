@@ -806,39 +806,100 @@ const CRT_LEVELS: Array<[string, number]> = [['기본', 0.5], ['약함', 0.2], [
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   storage.set('session', 'nan503.booted', '1');
   const ov = el('div', 'boot');
+  const crt = el('div', 'boot-crt'); // 전원 플래시 레이어
   const pre = el('pre', 'boot-text');
   const hint = el('p', 'boot-hint', '화면을 터치하거나 아무 키나 누르세요 — 건너뛰기');
-  ov.append(pre, hint);
+  ov.append(crt, pre, hint);
   document.body.append(ov);
-  const lines = [
-    'DOIT-BIOS v2.03 — (주)두잇상사 사내 표준 단말',
-    'INTRANET-503 수사 단말 클라이언트',
-    '메모리 체크 ......... 64MB OK',
-    '사내 망 접속 ......... OK',
-    'AI 심문 엔진 연결 ......... OK',
-    '',
-    '503호 창구에 오신 걸 환영합니다_',
-  ];
-  let i = 0;
-  let timer = 0;
-  const done = (): void => {
+  let skipped = false;
+  const timers: number[] = [];
+  const wait = (ms: number): Promise<void> =>
+    new Promise((res) => { timers.push(window.setTimeout(res, ms)); });
+  const finish = (): void => {
+    skipped = true;
+    timers.forEach((t) => clearTimeout(t));
     ov.classList.add('boot-out');
     setTimeout(() => ov.remove(), 320);
     document.removeEventListener('keydown', skip);
   };
-  const skip = (): void => { clearTimeout(timer); done(); };
-  const tick = (): void => {
-    if (i < lines.length) {
-      pre.textContent += `${lines[i]}\n`;
-      i += 1;
-      timer = window.setTimeout(tick, 180);
-    } else {
-      timer = window.setTimeout(done, 450);
-    }
-  };
-  timer = window.setTimeout(tick, 220);
+  const skip = (): void => { if (!skipped) finish(); };
   ov.addEventListener('click', skip);
   document.addEventListener('keydown', skip);
+
+  const line = (text: string, cls = ''): void => {
+    if (skipped) return;
+    const span = document.createElement('span');
+    if (cls) span.className = cls;
+    span.textContent = `${text}
+`;
+    pre.append(span);
+  };
+  const dots = async (label: string, n: number, per: number): Promise<void> => {
+    if (skipped) return;
+    const span = document.createElement('span');
+    span.textContent = label;
+    pre.append(span);
+    for (let i = 0; i < n && !skipped; i += 1) {
+      span.textContent += '.';
+      await wait(per);
+    }
+    if (!skipped) span.textContent += ' OK\n';
+  };
+
+  void (async () => {
+    await wait(480); // CRT 전원 플래시
+    line('DOIT-BIOS v2.03 — (주)두잇상사 사내 표준 단말');
+    await wait(260);
+    line('INTRANET-503 수사 단말 클라이언트');
+    await wait(340);
+    // 메모리 카운트업
+    const mem = document.createElement('span');
+    pre.append(mem);
+    for (const n of [64, 256, 1024, 4096, 16384]) {
+      if (skipped) return;
+      mem.textContent = `메모리 체크 ......... ${n}KB`;
+      await wait(110);
+    }
+    if (skipped) return;
+    mem.textContent += ' OK\n';
+    await wait(200);
+    line('CRT 디스플레이 ......... OK');
+    await wait(170);
+    line('사내 전화선 모뎀 ......... 33.6kbps OK');
+    await wait(230);
+    await dots('사내 망 접속 ', 7, 130);
+    await wait(190);
+    await dots('AI 심문 엔진 연결 ', 9, 150); // 의도적 지연 — 점점점이 기다리게
+    if (skipped) return;
+    await wait(280);
+    line('인격 모듈 적재 중:');
+    const modules: Array<[string, string]> = [
+      ['구본식 (영업부장)', '적재'],
+      ['차민재 (마케팅 대리)', '적재'],
+      ['이상록 (신입사원)', '적재'],
+      ['전순덕 (경리과장)', '적재'],
+      ['마루팡 (총무 과장)', '지연 — 원래 이런 분'],
+      ['오복자 (청소 담당)', '적재'],
+    ];
+    for (const [name, status] of modules) {
+      if (skipped) return;
+      line(`  ${name} .......... ${status}`, status.startsWith('지연') ? 'boot-warn' : '');
+      await wait(status.startsWith('지연') ? 430 : 130);
+    }
+    await wait(320);
+    line('');
+    line('경고: 이 단말기는 (주)두잇상사의 자산입니다.', 'boot-warn');
+    line('심문 내용은 503호에 기록됩니다. — 총무팀', 'boot-warn');
+    await wait(700);
+    if (skipped) return;
+    const logo = document.createElement('img');
+    logo.src = LOGO;
+    logo.className = 'boot-logo';
+    logo.alt = '사건파일 503호';
+    ov.append(logo);
+    await wait(1000);
+    finish();
+  })();
 })();
 
 renderTitle();
