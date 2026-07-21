@@ -51,6 +51,8 @@ export interface MetaPayload {
 export interface RemoteError {
   kind: 'llm-error' | 'network' | 'litmus';
   detail: string;
+  /** 스트림 시작 전 실패일 때만 true — mid-stream 실패는 sync 재시도하지 않는다 (이중 과금 방지, H5) */
+  preStream?: boolean;
 }
 
 /** SSE 스트리밍 ask/present. 실패 시 RemoteError throw (호출부가 목업 폴리백). */
@@ -64,9 +66,10 @@ export async function remoteAsk(
 ): Promise<MetaPayload> {
   try {
     return await remoteAskStream(c, s, npc, text, presentClueId, onDelta);
-  } catch {
-    // fetch/SSE 스트리밍 미지원 환경(일부 인앱 웹뷰) — sync JSON으로 1회 재시도
-    return await remoteAskSync(c, s, npc, text, presentClueId, onDelta);
+  } catch (e) {
+    // fetch/SSE 스트리밍 자체가 안 되는 환경(인앱 웹뷰)일 때만 sync JSON 재시도
+    if ((e as RemoteError)?.preStream) return await remoteAskSync(c, s, npc, text, presentClueId, onDelta);
+    throw e;
   }
 }
 
@@ -91,7 +94,7 @@ async function remoteAskStream(
     }),
   });
   if (!res.ok || !res.body || typeof res.body.getReader !== 'function') {
-    throw { kind: 'network', detail: `http ${res.status}` } as RemoteError;
+    throw { kind: 'network', detail: `http ${res.status}`, preStream: true } as RemoteError;
   }
 
   const reader = res.body.getReader();

@@ -3,7 +3,7 @@ import { NPC_PUBLIC } from '../../content/public/npcs';
 import type { NpcPublic, PublicCaseData, ServerCaseData } from '../game/types';
 import {
   accuse, applyRetry, ask, createGame, finalizeLose, grade, present,
-  GameState, TURN_WARN, WITNESS_COST,
+  GameState, TURN_BUDGET, TURN_WARN, WITNESS_COST,
 } from '../game/engine';
 import { initRemote, remoteAccuse, remoteAsk, remoteEnabled } from '../game/remote';
 import { CASE_CARD, LOGO, NPC_AVATAR, NPC_VARIANT, WALLPAPER } from '../assets';
@@ -34,13 +34,21 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
   return e;
 }
 
-/** 단말기 창 프레임 (타이틀바 + 본문) — 인트라넷 503 골격 */
-function windowFrame(title: string, body: HTMLElement): HTMLElement {
+/** 단말기 창 프레임 (타이틀바 + 본문) — 인트라넷 503 골격. onClose 주면 끝 버튼이 진짜 닫기로 동작 */
+function windowFrame(title: string, body: HTMLElement, onClose?: () => void): HTMLElement {
   const win = el('div', 'win');
   const bar = el('div', 'win-bar');
   bar.append(el('span', 'win-title', title));
   const btns = el('span', 'win-btns');
-  btns.append(el('i'), el('i'), el('i'));
+  btns.append(el('i'), el('i'));
+  if (onClose) {
+    const x = el('button', 'win-close', '✕');
+    x.setAttribute('aria-label', '닫기');
+    x.onclick = onClose;
+    btns.append(x);
+  } else {
+    btns.append(el('i'));
+  }
   bar.append(btns);
   const wrap = el('div', 'win-body');
   wrap.append(body);
@@ -74,13 +82,21 @@ function defenseSpan(st: GameState, id: string): HTMLElement | null {
 
 let logAll = false; // 로그 전체/현재 인물 토글 (심문 화면)
 let openClueId: string | null = null; // 증거 파일 창으로 열어본 단서
+let inputDraft = ''; // render() 재생성에도 입력 초안 보존 (H4)
 
 // 목업 폴리백 발동 시 1회만 고지 — "AI인 줄 알았는데 목업" 은폐 방지
 let mockNoticeShown = false;
+let mockRecovered = false;
 function notifyMockOnce(st: GameState): void {
   if (mockNoticeShown) return;
   mockNoticeShown = true;
   st.log.push({ who: '시스템', kind: 'sys', text: '현재 연결 상태로는 실시간 AI를 불러오지 못했습니다. 기본 답변으로 응답합니다. (다음 행동부터 자동 재시도)' });
+}
+/** 폴리백 고지 후 원격이 회복되면 1회 알림 (지금부터 실시간인지 알 방법이 없던 문제) */
+function notifyRecoveryOnce(st: GameState): void {
+  if (!mockNoticeShown || mockRecovered) return;
+  mockRecovered = true;
+  st.log.push({ who: '시스템', kind: 'sys', text: 'AI 연결이 복구됐습니다. 지금부터 실시간 답변입니다.' });
 }
 
 /** 첫 턴 예시 질문 칩 (시간/현장/인물 3축 암묵 교육) */
@@ -153,6 +169,7 @@ async function startCase(c: PublicCaseData): Promise<void> {
   fullCase = await loadFullCase(c.id);
   if (!fullCase) return;
   openClueId = null;
+  remoteEnding = null; // 이전 사건 엔딩이 새 사건 지면에 섞이는 크로스케이스 오염 방지 (C1)
   s = createGame(fullCase);
   s.phase = 'briefing';
   persist();
@@ -166,6 +183,8 @@ async function resumeCase(): Promise<void> {
   if (!c) return renderTitle();
   currentCase = c;
   fullCase = await loadFullCase(c.id);
+  openClueId = null;
+  remoteEnding = null;
   s = cur.state;
   render();
 }
@@ -235,6 +254,7 @@ function signatureOnHit(st: GameState): void {
 /** 폭로 전면 테이크오버 (플래시+집중선, reduced-motion 건드) */
 function takeover(kind: 'hit' | 'verdict'): void {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  document.querySelector('.takeover')?.remove(); // 연타 시 중첩 부착 방지 (M4)
   const ov = el('div', `takeover ${kind}`);
   document.body.append(ov);
   if (kind === 'verdict') {
@@ -269,6 +289,7 @@ async function handleAsk(npc: NpcPublic, fc: ServerCaseData, st: GameState, text
         render();
       });
       bubble.text = meta.reply;
+      notifyRecoveryOnce(st);
       st.npc[npc.id].defense = Math.max(-3, Math.min(3, st.npc[npc.id].defense + meta.defenseDelta));
       const newArm = syncArmed(st, meta);
       announceUnlocks(st, fc, meta.unlocked);
@@ -300,6 +321,7 @@ async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, 
     st.log.push({ who: '나', kind: 'me', text: `[단서 제시] ${clue?.title ?? clueId}`, npc: npc.id });
     try {
       const meta = await remoteAsk(fc, st, npc, `이 단서를 보시죠: ${clue?.title ?? ''}`, clueId, () => {});
+      notifyRecoveryOnce(st);
       st.log.push({ who: npc.name, kind: 'npc', text: meta.reply, npc: npc.id });
       const newArm = syncArmed(st, meta);
       announceUnlocks(st, fc, meta.unlocked);
@@ -370,6 +392,8 @@ function render(): void {
   app.innerHTML = '';
   const root = el('div', 'layout');
   let accuseDoc: HTMLElement | null = null;
+  // 파일 창은 심문 중에만 — 페이즈 이탈 시 자동으로 닫아 판정 오버레이와 겹치지 않게 (H1)
+  if (st.phase !== 'interrogate') openClueId = null;
 
   const side = el('aside', 'side');
   side.append(el('h1', 'case-title', c.title));
@@ -394,7 +418,7 @@ function render(): void {
     guide.append(el('strong', '', '수사 방법'));
     guide.append(el('p', '', '① 목록에서 심문할 사람을 고르고 자유롭게 질문하세요. 선택지는 없습니다. (질문 1회 = 1턴)'));
     guide.append(el('p', '', '② 얻은 단서는 [제시]로 들이대세요. 제시는 턴을 쓰지 않습니다.'));
-    guide.append(el('p', '', '③ 핵심 단서를 모아 [범인 지목]. 24턴 안에 결론을 내야 합니다.'));
+    guide.append(el('p', '', `③ 핵심 단서를 모아 [범인 지목]. ${TURN_BUDGET}턴 안에 결론을 내야 합니다.`));
     side.append(guide);
     const start = el('button', 'btn primary', '심문 시작');
     start.onclick = () => { st.phase = 'interrogate'; greetIfNew(st, st.activeSuspect); persist(); render(); };
@@ -454,7 +478,11 @@ function render(): void {
       const ce = el('div', 'clue clickable');
       ce.append(el('strong', '', clue.title));
       ce.append(el('p', '', clue.desc));
+      ce.tabIndex = 0; // 키보드 접근 (H4)
       ce.onclick = () => { openClueId = cid; render(); };
+      ce.onkeydown = (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openClueId = cid; render(); }
+      };
       if (st.phase === 'interrogate') {
         const pb = el('button', 'btn mini', '제시');
         pb.onclick = (ev) => {
@@ -515,6 +543,8 @@ function render(): void {
     const form = el('form', 'input-bar');
     const input = el('input');
     input.placeholder = `${npc.name}에게 질문… (Enter 전송)`;
+    input.value = inputDraft; // render 재생성에도 초안 유지
+    input.addEventListener('input', () => { inputDraft = input.value; });
     let composing = false;
     input.addEventListener('compositionstart', () => { composing = true; });
     input.addEventListener('compositionend', () => { composing = false; });
@@ -525,6 +555,7 @@ function render(): void {
       ev.preventDefault();
       const text = input.value.trim();
       if (!text) return;
+      inputDraft = '';
       void handleAsk(npc, fc, st, text);
     };
     input.onkeydown = (ev) => {
@@ -658,7 +689,7 @@ function render(): void {
       close.onclick = () => { openClueId = null; render(); };
       fbtns.append(close);
       body.append(fbtns);
-      const fw = windowFrame(`증거 파일 — ${clue.title}`, body);
+      const fw = windowFrame(`증거 파일 — ${clue.title}`, body, () => { openClueId = null; render(); });
       fw.classList.add('file-win');
       app.append(fw);
     }
@@ -718,7 +749,7 @@ function renderResult(c: PublicCaseData, fc: ServerCaseData, st: GameState, main
 
   const share = el('button', 'btn', '결과 카드 복사');
   share.onclick = () => {
-    const text = `사건파일 503호 「${c.title}」 — 등급 ${g} (질문 ${st.turnsUsed}회, 단서 ${st.foundClues.length}/${c.clues.length})`;
+    const text = `사건파일 503호 「${c.title}」 — 고과 ${g} (질문 ${st.turnsUsed}회, 단서 ${st.foundClues.length}/${c.clues.length})`;
     void navigator.clipboard?.writeText(text);
     share.textContent = '복사됨 ✓';
   };
@@ -765,7 +796,7 @@ const CRT_LEVELS: Array<[string, number]> = [['기본', 0.5], ['약함', 0.2], [
   sessionStorage.setItem('nan503.booted', '1');
   const ov = el('div', 'boot');
   const pre = el('pre', 'boot-text');
-  const hint = el('p', 'boot-hint', '화면을 터치하거나 아무 키나 누르세요 — 건너띠기');
+  const hint = el('p', 'boot-hint', '화면을 터치하거나 아무 키나 누르세요 — 건너뚰기');
   ov.append(pre, hint);
   document.body.append(ov);
   const lines = [

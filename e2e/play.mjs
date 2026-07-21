@@ -51,6 +51,7 @@ async function waitStable(page, timeoutMs = 60000) {
 
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+await page.addInitScript(() => sessionStorage.setItem('nan503.booted', '1')); // 부팅 시퀀스 스킵 (M1)
 if (SEED) await page.addInitScript((s) => localStorage.setItem('nan503.v1', s), SEED);
 page.setDefaultTimeout(15000);
 

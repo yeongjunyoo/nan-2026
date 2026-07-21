@@ -83,7 +83,7 @@ export function judge(c: ServerCaseData, s: GameState, culpritId: string, clueId
   const partial = c.partialClueSets.some((set) => set.every((k) => clueIds.includes(k)));
   const hint = c.accuseHints?.[culpritId];
   const base = partial
-    ? '단서 조합은 그럴듯한데, 뭔가 하나 어긋납니다. 이 사건과 직결되는 줄은 아닌 것 같습니다.'
+    ? '단서 조합은 그럴듯한데, 뭔가 하나 어긋납니다. 이 사건과 직결되는 선은 아닌 것 같습니다.'
     : '그 사람의 알리바이는 성립하는 것 같습니다. 이 선은 접고, 다른 쪽을 살펴야겠습니다.';
   return { verdict: 'lose', feedback: hint ? `${base} ${hint}` : base };
 }
