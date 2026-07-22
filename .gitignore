@@ -3,3 +3,4 @@ dist/
 .env
 .env.*
 e2e/shots/
+e2e/capture/out/
