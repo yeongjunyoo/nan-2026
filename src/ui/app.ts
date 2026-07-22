@@ -7,6 +7,7 @@ import {
 } from '../game/engine';
 import { initRemote, remoteAccuse, remoteAsk, remoteEnabled } from '../game/remote';
 import { CASE_CARD, LOGO, NPC_AVATAR, NPC_VARIANT, WALLPAPER } from '../assets';
+import { sfxPlay } from './sfx';
 
 let remoteEnding: ServerCaseData['ending'] | null = null;
 
@@ -241,10 +242,12 @@ function announceUnlocks(st: GameState, fc: ServerCaseData, unlocked: Array<{ id
   if (beforeCount <= 1 && st.foundClues.length > beforeCount) {
     st.log.push({ who: '시스템', kind: 'sys', text: '단서는 [제시] 버튼으로 상대에게 들이댈 수 있습니다. 제시는 턴을 쓰지 않습니다.' });
   }
+  if (st.foundClues.length > beforeCount) sfxPlay('unlock');
   pushReveals(st, fc, unlocked.map((u) => u.id));
 }
 
 function armHint(st: GameState): void {
+  sfxPlay('arm');
   st.log.push({ who: '시스템', kind: 'sys', text: '상대가 크게 동요했습니다. 이 단서가 건드린 모양입니다 — 같은 선으로 더 캐물어보세요.' });
 }
 
@@ -263,6 +266,7 @@ function signatureOnHit(st: GameState): void {
 
 /** 폭로 전면 테이크오버 (플래시+집중선, reduced-motion 건드) */
 function takeover(kind: 'hit' | 'verdict'): void {
+  sfxPlay(kind); // 사운드는 reduced-motion과 무관 (시각 효과만 건너뜀)
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   document.querySelector('.takeover')?.remove(); // 연타 시 중첩 부착 방지 (M4)
   const ov = el('div', `takeover ${kind}`);
@@ -299,6 +303,7 @@ async function handleAsk(npc: NpcPublic, fc: ServerCaseData, st: GameState, text
         render();
       });
       bubble.text = meta.reply;
+      sfxPlay('receive');
       notifyRecoveryOnce(st);
       st.npc[npc.id].defense = Math.max(-3, Math.min(3, st.npc[npc.id].defense + meta.defenseDelta));
       const newArm = syncArmed(st, meta);
@@ -318,6 +323,7 @@ async function handleAsk(npc: NpcPublic, fc: ServerCaseData, st: GameState, text
   const armedBefore = new Set(Object.keys(st.armedChains ?? {}));
   const cluesBefore = new Set(st.foundClues);
   ask(npc, fc, st, text);
+  sfxPlay('receive');
   const newIds = st.foundClues.filter((id) => !cluesBefore.has(id));
   pushReveals(st, fc, newIds);
   tutorialIfFirst(st, cluesBefore.size);
@@ -333,6 +339,7 @@ async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, 
       const meta = await remoteAsk(fc, st, npc, `이 단서를 보시죠: ${clue?.title ?? ''}`, clueId, () => {});
       notifyRecoveryOnce(st);
       st.log.push({ who: npc.name, kind: 'npc', text: meta.reply, npc: npc.id });
+      sfxPlay('receive');
       const newArm = syncArmed(st, meta);
       announceUnlocks(st, fc, meta.unlocked);
       if (meta.unlocked.length > 0 || newArm) {
@@ -353,6 +360,7 @@ async function handlePresent(npc: NpcPublic, fc: ServerCaseData, st: GameState, 
   }
   const cluesBefore = new Set(st.foundClues);
   const res = present(npc, fc, st, clueId);
+  sfxPlay('receive');
   pushReveals(st, fc, res.unlocked);
   tutorialIfFirst(st, cluesBefore.size);
   if (res.unlocked.length > 0 || res.armed.length > 0) {
@@ -376,6 +384,7 @@ async function handleAccuse(fc: ServerCaseData, st: GameState, culpritId: string
       if (r.verdict === 'win') {
         st.phase = 'result';
         takeover('verdict');
+        setTimeout(() => sfxPlay('fanfare'), 700); // 플래시 걷힌 뒤 신문 지면 팡파레
         if (r.ending) remoteEnding = r.ending;
         for (const id of r.postUnlock ?? []) {
           if (!st.foundClues.includes(id)) st.foundClues.push(id);
@@ -389,7 +398,7 @@ async function handleAccuse(fc: ServerCaseData, st: GameState, culpritId: string
   }
   const r = accuse(fc, st, culpritId, clueIds);
   if (r.verdict !== 'win') st.log.push({ who: '판정', kind: 'sys', text: r.feedback });
-  else takeover('verdict');
+  else { takeover('verdict'); setTimeout(() => sfxPlay('fanfare'), 700); }
   persist(); render();
 }
 
@@ -431,7 +440,7 @@ function render(): void {
     guide.append(el('p', '', `③ 핵심 단서를 모아 [범인 지목]. ${TURN_BUDGET}턴 안에 결론을 내야 합니다.`));
     side.append(guide);
     const start = el('button', 'btn primary', '심문 시작');
-    start.onclick = () => { st.phase = 'interrogate'; greetIfNew(st, st.activeSuspect); persist(); render(); };
+    start.onclick = () => { sfxPlay('send'); st.phase = 'interrogate'; greetIfNew(st, st.activeSuspect); persist(); render(); };
     side.append(start);
   } else {
     side.append(el('h2', 'sec', '용의자'));
@@ -566,6 +575,7 @@ function render(): void {
       const text = input.value.trim();
       if (!text) return;
       inputDraft = '';
+      sfxPlay('send');
       void handleAsk(npc, fc, st, text);
     };
     input.onkeydown = (ev) => {
@@ -616,6 +626,7 @@ function render(): void {
     const docBtns = el('div', 'doc-btns');
     submit.onclick = () => {
       if (!pickedNpc) return;
+      sfxPlay('stamp');
       void handleAccuse(fc, st, pickedNpc, [...pickedClues]);
     };
     const back = el('button', 'btn', '← 심문으로');
@@ -831,6 +842,7 @@ const CRT_LEVELS: Array<[string, number]> = [['기본', 0.5], ['약함', 0.2], [
 
   const line = (text: string, cls = ''): void => {
     if (skipped) return;
+    sfxPlay('bootBlip');
     const span = document.createElement('span');
     if (cls) span.className = cls;
     span.textContent = `${text}
@@ -900,6 +912,7 @@ const CRT_LEVELS: Array<[string, number]> = [['기본', 0.5], ['약함', 0.2], [
     logo.className = 'boot-logo';
     logo.alt = '사건파일 503호';
     ov.append(logo);
+    sfxPlay('slam');
     await wait(1000);
     finish();
   })();

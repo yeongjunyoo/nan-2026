@@ -47,3 +47,9 @@ bash e2e/capture/assemble.sh e2e/capture/out/case1/page@<hash>.webm e2e/capture/
   → AAC-LC 384k 48kHz, 비디오 copy. 산출물 `out/nan503_play_live_v2_bgm-{marty,sneaky,8bit}.mp4`
   (실측 -14.4/-14.8/-14.4 LUFS). 최종 픽 후 유튜브 설명란에 incompetech 크레딧 문구 필수
   (상세: 제출물④ 초안 (d) 표 + vault `19 BGM·음원 라이선스 도시에`).
+- **BGM 확정 + SFX (2026-07-22)**: 청음 픽 = **8bit Dungeon Boss**. 게임에 ZzFX(MIT) 런타임 SFX 10종 탑재
+  (`src/ui/sfx.ts` + `sfx-params.ts`, 우하단 「사운드」 토글). 영상 오버레이용 WAV는
+  `npx tsx e2e/capture/gen_sfx_wav.mjs` → `e2e/capture/sfx/`(gitignore)에 동일 파라미터로 렌더.
+  **최종본 `out/nan503_play_live_v3_full.mp4`** = 8bit BGM + SFX 8타점(슬램 5.30/전송 11.03/단서 12.60·23.40/
+  동요 19.40/상신 27.34/판정 27.62/팡파레 28.40 — 프레임 브래키팅 실측) amix + alimiter, -13.4 LUFS 실측.
+  주의: playwright 녹화 webm에는 오디오가 없으므로 게임 SFX가 생겨도 영상 사운드는 항상 후반 오버레이로 넣는다.

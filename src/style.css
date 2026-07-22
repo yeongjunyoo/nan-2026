@@ -244,6 +244,12 @@ img.verdict-portrait.breakdown { border-color: #5c2f2f; box-shadow: 0 0 0 4px rg
   font-family: var(--font-body); font-size: 12px; padding: 4px 10px; cursor: pointer;
 }
 .crt-toggle:hover { color: var(--tx); border-color: var(--mut); }
+.sfx-toggle {
+  position: fixed; right: 118px; bottom: 10px; z-index: 20;
+  background: var(--panel); border: 2px solid var(--line); color: var(--mut);
+  font-family: var(--font-body); font-size: 12px; padding: 4px 10px; cursor: pointer;
+}
+.sfx-toggle:hover { color: var(--tx); border-color: var(--mut); }
 ::selection { background: var(--accent); color: #1a1206; }
 
 /* ─── 품의서 (지목) ─── */
