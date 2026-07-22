@@ -4,3 +4,4 @@ dist/
 .env.*
 e2e/shots/
 e2e/capture/out/
+e2e/capture/fonts/

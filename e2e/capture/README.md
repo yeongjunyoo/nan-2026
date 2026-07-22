@@ -33,3 +33,10 @@ bash e2e/capture/assemble.sh e2e/capture/out/case1/page@<hash>.webm e2e/capture/
   필요하다. 최초 1회만 설치하면 된다.
 - `assemble.sh`는 별도의 시스템 ffmpeg CLI가 필요하다(`winget install -e --id Gyan.FFmpeg`).
 - 세그먼트 JSON 스키마와 예시는 `assemble.sh` 상단 주석 참고.
+- **beats.json의 tMs ↔ webm 타임라인 오프셋 주의**: tMs는 스크립트 t0 기준, webm 녹화는
+  브라우저 런치 후 시작이라 tMs가 영상보다 **약 1.0~1.1초 늦다** (2026-07-22 라이브 테이크 실측:
+  브리핑 진입 beat 10546ms ↔ webm ~9.5s). 세그먼트 좌표는 `tMs - 1050ms` 근사 후 프레임 추출로 검증할 것.
+- 자막 폰트는 Galmuri11-Bold ttf 권장 (`e2e/capture/fonts/`에 로컬 다운로드, OFL, gitignore) —
+  레포 내 woff2는 ffmpeg drawtext segfault (Gyan 8.1.2 실측).
+- 라이브 테이크 v1 (2026-07-22): `out/case1_live/` webm 48.4s → `segments-live1.json` 11컷 →
+  `out/nan503_play_live_v1.mp4` (35.1s, 1080p30 H.264 High, faststart, 무음 — 게임에 오디오 없음).
