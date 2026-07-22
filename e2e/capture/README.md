@@ -40,3 +40,10 @@ bash e2e/capture/assemble.sh e2e/capture/out/case1/page@<hash>.webm e2e/capture/
   레포 내 woff2는 ffmpeg drawtext segfault (Gyan 8.1.2 실측).
 - 라이브 테이크 v1 (2026-07-22): `out/case1_live/` webm 48.4s → `segments-live1.json` 11컷 →
   `out/nan503_play_live_v1.mp4` (35.1s, 1080p30 H.264 High, faststart, 무음 — 게임에 오디오 없음).
+- **BGM (2026-07-22)**: 게임이 무음이라 영상에 BGM 삽입 — Kevin MacLeod(incompetech, CC-BY 4.0 = 크레딧 필수).
+  후보 3종을 `e2e/capture/bgm/`(gitignore)에 로컬 보관: Marty Gots a Plan(1픽) / Sneaky Snitch / 8bit Dungeon Boss
+  (재현: `https://incompetech.com/music/royalty-free/mp3-royaltyfree/<Title>.mp3`). AI 생성 음악은 요강 "AI 합성"
+  확대해석 리스크로 배제. 믹싱 체인: `atrim 35.1s → loudnorm I=-14:TP=-1.5:LRA=11 → afade in 0.4s/out 33.0s+2s`
+  → AAC-LC 384k 48kHz, 비디오 copy. 산출물 `out/nan503_play_live_v2_bgm-{marty,sneaky,8bit}.mp4`
+  (실측 -14.4/-14.8/-14.4 LUFS). 최종 픽 후 유튜브 설명란에 incompetech 크레딧 문구 필수
+  (상세: 제출물④ 초안 (d) 표 + vault `19 BGM·음원 라이선스 도시에`).
