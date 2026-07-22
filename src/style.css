@@ -245,7 +245,7 @@ img.verdict-portrait.breakdown { border-color: #5c2f2f; box-shadow: 0 0 0 4px rg
 }
 .crt-toggle:hover { color: var(--tx); border-color: var(--mut); }
 .sfx-toggle {
-  position: fixed; right: 118px; bottom: 10px; z-index: 20;
+  position: fixed; right: 124px; bottom: 10px; z-index: 20;
   background: var(--panel); border: 2px solid var(--line); color: var(--mut);
   font-family: var(--font-body); font-size: 12px; padding: 4px 10px; cursor: pointer;
 }
@@ -391,6 +391,6 @@ img.verdict-portrait.breakdown { border-color: #5c2f2f; box-shadow: 0 0 0 4px rg
   .overlay-panel .btn { margin-bottom: 8px; }
   /* 고과 도장은 지면 위에서 정렬 (마스트헤드 겹침 방지) */
   .grade-stamp { position: static; display: table; margin: 8px auto; transform: rotate(3deg); }
-  /* CRT 토글은 플로팅 대신 맨 아래 플로우로 (입력창 가림 방지) */
-  .crt-toggle { position: static; display: table; margin: 10px auto; }
+  /* 토글류는 플로팅 대신 맨 아래 플로우로 (입력창 가림 방지) */
+  .crt-toggle, .sfx-toggle { position: static; display: table; margin: 10px auto; }
 }
