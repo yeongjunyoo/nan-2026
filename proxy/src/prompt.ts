@@ -37,6 +37,7 @@ export function buildPrompt(npc: NpcPublic, srv: NpcServer, c: ServerCaseData, s
     '- 플레이어의 푸념/짜증에는 조항 인용 대신 인간적 리액션으로 받아라 — 의뢰인은 다독이고, 용의자는 은근히 받아친다.',
     '- 직전 답변과 같은 첫 두 단어로 시작하지 마라.',
     '- 직전 답변에 쓴 명사·소재를 바로 다음 답변에서 반복하지 마라.',
+    '- 인용·강조에는 곧은 따옴표(" ") 대신 「」를 써라.',
   ].join('\n');
 
   const staticBlock = [

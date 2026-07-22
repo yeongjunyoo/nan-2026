@@ -70,6 +70,10 @@ export async function remoteAsk(
   presentClueId: string | null,
   onDelta: (full: string) => void,
 ): Promise<MetaPayload> {
+  // ?syncall — 강제 sync 모드 (스트리밍 미지원 환경 시뮬레이션/테스트)
+  if (new URLSearchParams(location.search).has('syncall')) {
+    return await remoteAskSync(c, s, npc, text, presentClueId, onDelta);
+  }
   try {
     return await remoteAskStream(c, s, npc, text, presentClueId, onDelta);
   } catch (e) {
@@ -167,7 +171,17 @@ async function remoteAskSync(
     sessionToken = meta.token;
     store.set('nan503.session', sessionToken);
   }
-  onDelta(meta.reply); // 스트리밍 불가 환경이니 완성문 1회 전달
+  // 스트리밍 불가 환경 — 타이프라이터 시뮬레이션 (모바일에서도 답변이 '쳐지는' 감각 유지)
+  if (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    onDelta(meta.reply);
+  } else {
+    const CHUNK = 3;
+    for (let i = 0; i < meta.reply.length; i += CHUNK) {
+      if (typeof document !== 'undefined' && document.hidden) { onDelta(meta.reply.slice(i)); break; }
+      onDelta(meta.reply.slice(i, i + CHUNK));
+      await new Promise((r) => setTimeout(r, 26));
+    }
+  }
   return meta;
 }
 
